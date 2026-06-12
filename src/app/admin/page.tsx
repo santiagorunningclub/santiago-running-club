@@ -1,4 +1,5 @@
 'use client'
+
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useRef } from 'react'
@@ -6,14 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import type { Profile, Sponsor } from '@/lib/types'
 
-type Panel = 'overview' | 'miembros' | 'pagos' | 'eventos' | 'moderacion' | 'estadisticas' | 'admins' | 'preview'
-
-interface ActivityLog {
-  text: string
-  time: string
-  icon: string
-  color: string
-}
+type Panel = 'overview' | 'miembros' | 'pagos' | 'eventos' | 'moderacion' | 'chat' | 'foro' | 'admins' | 'preview'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -21,11 +15,14 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [adminName, setAdminName] = useState('SA')
 
-  // Data
   const [members, setMembers] = useState<Profile[]>([])
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [pendingPhotos, setPendingPhotos] = useState<any[]>([])
-  const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, revenue: 0, events: 0, pendingContent: 0 })
+  const [events, setEvents] = useState<any[]>([])
+  const [channels, setChannels] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([])
+  const [threads, setThreads] = useState<any[]>([])
+  const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, pendingContent: 0 })
   const [searchQuery, setSearchQuery] = useState('')
 
   // Sponsor form
@@ -33,7 +30,7 @@ export default function AdminPage() {
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null)
   const [sponsorForm, setSponsorForm] = useState({ name: '', description: '', category: '', website_url: '', instagram: '', whatsapp: '', discount_code: '', discount_desc: '', featured: false, active: true })
   const [sponsorLogoFile, setSponsorLogoFile] = useState<File | null>(null)
-  const [sponsorLogoPreview, setSponsorLogoPreview] = useState<string>('')
+  const [sponsorLogoPreview, setSponsorLogoPreview] = useState('')
   const [sponsorMsg, setSponsorMsg] = useState('')
   const logoInputRef = useRef<HTMLInputElement>(null)
 
@@ -42,18 +39,21 @@ export default function AdminPage() {
   const [editingMember, setEditingMember] = useState<Profile | null>(null)
   const [memberForm, setMemberForm] = useState({ full_name: '', email: '', phone: '', plan: 'pace', plan_status: 'active', level: 'bronce' })
   const [memberMsg, setMemberMsg] = useState('')
+  const [isNewMember, setIsNewMember] = useState(false)
 
-  // Admin modal
-  const [showAdminModal, setShowAdminModal] = useState(false)
+  // Event modal
+  const [showEventModal, setShowEventModal] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<any>(null)
+  const [eventForm, setEventForm] = useState({ title: '', description: '', type: 'corrida', date: '', location: '', distance: '', max_capacity: '', elite_only: false, status: 'active', image_url: '' })
+  const [eventMsg, setEventMsg] = useState('')
+  const [eventImageFile, setEventImageFile] = useState<File | null>(null)
+  const [eventImagePreview, setEventImagePreview] = useState('')
+  const eventImageRef = useRef<HTMLInputElement>(null)
 
-  const activityLog: ActivityLog[] = [
-    { text: '<strong>Ana López</strong> se unió al plan Pace', time: 'Hace 12 minutos', icon: '👤', color: 'ki-green' },
-    { text: '<strong>Roberto Suárez</strong> renovó su membresía Elite · RD$2,000', time: 'Hace 34 minutos', icon: '💳', color: 'ki-amber' },
-    { text: '<strong>3 fotos nuevas</strong> esperan moderación en la galería', time: 'Hace 1 hora', icon: '📸', color: 'ki-red' },
-    { text: '<strong>Miguel Rodríguez</strong> publicó un nuevo hilo en el foro', time: 'Hace 2 horas', icon: '💬', color: 'ki-blue' },
-    { text: '<strong>Carlos Méndez</strong> canceló su membresía Pace', time: 'Hace 3 horas', icon: '✕', color: 'ki-red' },
-    { text: '<strong>Track Day · Jueves 12</strong> confirmado · 14 corredores Elite', time: 'Hace 5 horas', icon: '✓', color: 'ki-green' },
-  ]
+  // Channel modal
+  const [showChannelModal, setShowChannelModal] = useState(false)
+  const [channelForm, setChannelForm] = useState({ name: '', emoji: '', elite_only: false })
+  const [channelMsg, setChannelMsg] = useState('')
 
   useEffect(() => { checkAdmin() }, [])
   useEffect(() => { if (!loading) loadData() }, [panel, loading])
@@ -69,27 +69,68 @@ export default function AdminPage() {
   }
 
   async function loadData() {
-    if (panel === 'overview' || panel === 'miembros') {
+    if (panel === 'overview' || panel === 'miembros' || panel === 'pagos') {
       const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
       const m = data || []
       setMembers(m)
-      setStats(s => ({ ...s, totalMembers: m.length, activeMembers: m.filter(x => x.plan_status === 'active').length }))
+      setStats(s => ({ ...s, totalMembers: m.length, activeMembers: m.filter((x: any) => x.plan_status === 'active').length }))
     }
     if (panel === 'moderacion') {
       const { data } = await supabase.from('photos').select('*, uploader:profiles(full_name)').eq('approved', false).order('created_at', { ascending: false })
       setPendingPhotos(data || [])
       setStats(s => ({ ...s, pendingContent: (data || []).length }))
     }
-    if (panel === 'admins' || panel === 'overview') {
+    if (panel === 'admins') {
       const { data: sp } = await supabase.from('sponsors').select('*').order('sort_order')
       setSponsors(sp || [])
+    }
+    if (panel === 'eventos') {
+      const { data } = await supabase.from('events').select('*').order('date', { ascending: true })
+      setEvents(data || [])
+    }
+    if (panel === 'chat') {
+      const { data } = await supabase.from('messages')
+        .select('*, profile:profiles(full_name, plan)')
+        .eq('deleted', false)
+        .order('created_at', { ascending: true })
+        .limit(100)
+      setMessages(data || [])
+    }
+    if (panel === 'foro') {
+      const { data: ch } = await supabase.from('channels').select('*').order('name')
+      setChannels(ch || [])
+      const { data: th } = await supabase.from('threads').select('*, profile:profiles(full_name)').eq('deleted', false).order('pinned', { ascending: false }).order('created_at', { ascending: false })
+      setThreads(th || [])
+    }
+  }
+
+  async function saveEvent() {
+    setEventMsg('')
+    let imageUrl = editingEvent?.image_url || ''
+    if (eventImageFile) {
+      const fileExt = eventImageFile.name.split('.').pop()
+      const fileName = `event-${Date.now()}.${fileExt}`
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('logos').upload(fileName, eventImageFile)
+      if (!uploadError && uploadData) {
+        const { data: urlData } = supabase.storage.from('logos').getPublicUrl(fileName)
+        imageUrl = urlData.publicUrl
+      }
+    }
+    const payload = { ...eventForm, max_capacity: eventForm.max_capacity ? parseInt(eventForm.max_capacity) : null, image_url: imageUrl }
+    if (editingEvent) {
+      const { error } = await supabase.from('events').update(payload).eq('id', editingEvent.id)
+      if (!error) { setEventMsg('✓ Evento actualizado'); loadData(); setTimeout(() => setShowEventModal(false), 1000) }
+      else setEventMsg('Error: ' + error.message)
+    } else {
+      const { error } = await supabase.from('events').insert([payload])
+      if (!error) { setEventMsg('✓ Evento creado'); loadData(); setTimeout(() => setShowEventModal(false), 1000) }
+      else setEventMsg('Error: ' + error.message)
     }
   }
 
   async function saveSponsor() {
     setSponsorMsg('')
     let logoUrl = editingSponsor?.logo_url || ''
-
     if (sponsorLogoFile) {
       const fileExt = sponsorLogoFile.name.split('.').pop()
       const fileName = `sponsor-${Date.now()}.${fileExt}`
@@ -99,65 +140,115 @@ export default function AdminPage() {
         logoUrl = urlData.publicUrl
       }
     }
-
     const payload = { ...sponsorForm, logo_url: logoUrl }
-
     if (editingSponsor) {
       const { error } = await supabase.from('sponsors').update(payload).eq('id', editingSponsor.id)
-      if (!error) { setSponsorMsg('✓ Patrocinador actualizado'); loadData(); setTimeout(() => setShowSponsorModal(false), 1000) }
+      if (!error) { setSponsorMsg('✓ Actualizado'); loadData(); setTimeout(() => setShowSponsorModal(false), 1000) }
     } else {
       const { error } = await supabase.from('sponsors').insert([payload])
-      if (!error) { setSponsorMsg('✓ Patrocinador creado'); loadData(); setTimeout(() => setShowSponsorModal(false), 1000) }
+      if (!error) { setSponsorMsg('✓ Creado'); loadData(); setTimeout(() => setShowSponsorModal(false), 1000) }
     }
-  }
-
-  async function deleteSponsor(id: string) {
-    if (!confirm('¿Desactivar este patrocinador?')) return
-    await supabase.from('sponsors').update({ active: false }).eq('id', id)
-    loadData()
-    toast('✓ Patrocinador desactivado')
-  }
-
-  async function updateMemberStatus(id: string, plan_status: string) {
-    await supabase.from('profiles').update({ plan_status }).eq('id', id)
-    loadData()
-    toast(`✓ Miembro ${plan_status === 'active' ? 'activado' : plan_status === 'suspended' ? 'suspendido' : 'actualizado'}`)
   }
 
   async function saveMember() {
     setMemberMsg('')
-    if (editingMember) {
+    if (isNewMember) {
+      // Create new user in Supabase Auth + profile
+      const { data, error } = await supabase.auth.admin?.createUser({ email: memberForm.email, password: 'TempPass123!', email_confirm: true }) as any
+      if (error) { setMemberMsg('Error: ' + error.message); return }
+      const userId = data?.user?.id
+      if (userId) {
+        await supabase.from('profiles').insert([{ id: userId, ...memberForm }])
+        setMemberMsg('✓ Miembro creado')
+        loadData()
+        setTimeout(() => setShowMemberModal(false), 1000)
+      }
+    } else if (editingMember) {
       const { error } = await supabase.from('profiles').update(memberForm).eq('id', editingMember.id)
-      if (!error) { setMemberMsg('✓ Miembro actualizado'); loadData(); setTimeout(() => setShowMemberModal(false), 1000) }
+      if (!error) { setMemberMsg('✓ Actualizado'); loadData(); setTimeout(() => setShowMemberModal(false), 1000) }
     }
+  }
+
+  async function saveChannel() {
+    setChannelMsg('')
+    const { error } = await supabase.from('channels').insert([channelForm])
+    if (!error) { setChannelMsg('✓ Canal creado'); loadData(); setTimeout(() => setShowChannelModal(false), 1000) }
+    else setChannelMsg('Error: ' + error.message)
+  }
+
+  async function deleteChannel(id: string) {
+    if (!confirm('¿Eliminar este canal? Se eliminarán todos sus mensajes.')) return
+    await supabase.from('messages').delete().eq('channel_id', id)
+    await supabase.from('channels').delete().eq('id', id)
+    loadData(); toast('✓ Canal eliminado')
+  }
+
+  async function updateMemberStatus(id: string, plan_status: string) {
+    await supabase.from('profiles').update({ plan_status }).eq('id', id)
+    loadData(); toast(`✓ Miembro ${plan_status === 'active' ? 'activado' : 'suspendido'}`)
   }
 
   async function approvePhoto(id: string) {
     await supabase.from('photos').update({ approved: true }).eq('id', id)
-    loadData()
-    toast('✓ Foto aprobada y publicada')
+    loadData(); toast('✓ Foto aprobada')
   }
 
   async function rejectPhoto(id: string) {
     await supabase.from('photos').delete().eq('id', id)
-    loadData()
-    toast('✕ Foto rechazada y eliminada')
+    loadData(); toast('✕ Foto rechazada')
+  }
+
+  async function deleteMessage(id: string) {
+    await supabase.from('messages').update({ deleted: true }).eq('id', id)
+    loadData(); toast('✕ Mensaje eliminado')
+  }
+
+  async function pinMessage(id: string, pinned: boolean) {
+    await supabase.from('messages').update({ pinned: !pinned }).eq('id', id)
+    loadData(); toast(pinned ? 'Desfijado' : '📌 Fijado')
+  }
+
+  async function deleteThread(id: string) {
+    await supabase.from('threads').update({ deleted: true }).eq('id', id)
+    loadData(); toast('✕ Hilo eliminado')
+  }
+
+  async function pinThread(id: string, pinned: boolean) {
+    await supabase.from('threads').update({ pinned: !pinned }).eq('id', id)
+    loadData(); toast(pinned ? 'Desfijado' : '📌 Fijado')
+  }
+
+  async function deleteEvent(id: string) {
+    if (!confirm('¿Eliminar este evento?')) return
+    await supabase.from('events').delete().eq('id', id)
+    loadData(); toast('✕ Evento eliminado')
+  }
+
+  function openNewEvent() {
+    setEditingEvent(null)
+    setEventForm({ title: '', description: '', type: 'corrida', date: '', location: '', distance: '', max_capacity: '', elite_only: false, status: 'active', image_url: '' })
+    setEventImageFile(null); setEventImagePreview(''); setEventMsg('')
+    setShowEventModal(true)
+  }
+
+  function openEditEvent(ev: any) {
+    setEditingEvent(ev)
+    setEventForm({ title: ev.title, description: ev.description || '', type: ev.type, date: ev.date?.split('T')[0] || '', location: ev.location || '', distance: ev.distance || '', max_capacity: ev.max_capacity?.toString() || '', elite_only: ev.elite_only, status: ev.status, image_url: ev.image_url || '' })
+    setEventImagePreview(ev.image_url || ''); setEventImageFile(null); setEventMsg('')
+    setShowEventModal(true)
   }
 
   function openEditSponsor(sp: Sponsor) {
     setEditingSponsor(sp)
     setSponsorForm({ name: sp.name, description: sp.description || '', category: sp.category || '', website_url: sp.website_url || '', instagram: sp.instagram || '', whatsapp: sp.whatsapp || '', discount_code: sp.discount_code || '', discount_desc: sp.discount_desc || '', featured: sp.featured, active: sp.active })
-    setSponsorLogoPreview(sp.logo_url || '')
-    setSponsorLogoFile(null)
+    setSponsorLogoPreview(sp.logo_url || ''); setSponsorLogoFile(null); setSponsorMsg('')
     setShowSponsorModal(true)
   }
 
   function openNewSponsor() {
     setEditingSponsor(null)
     setSponsorForm({ name: '', description: '', category: '', website_url: '', instagram: '', whatsapp: '', discount_code: '', discount_desc: '', featured: false, active: true })
-    setSponsorLogoPreview('')
-    setSponsorLogoFile(null)
-    setSponsorMsg('')
+    setSponsorLogoPreview(''); setSponsorLogoFile(null); setSponsorMsg('')
     setShowSponsorModal(true)
   }
 
@@ -167,6 +258,16 @@ export default function AdminPage() {
       setSponsorLogoFile(file)
       const reader = new FileReader()
       reader.onload = (ev) => setSponsorLogoPreview(ev.target?.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  function handleEventImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      setEventImageFile(file)
+      const reader = new FileReader()
+      reader.onload = (ev) => setEventImagePreview(ev.target?.result as string)
       reader.readAsDataURL(file)
     }
   }
@@ -196,6 +297,8 @@ export default function AdminPage() {
     { href: '/directory', label: 'Directorio', badge: 'Miembro', color: '#22d3ee' },
   ]
 
+  const eventTypeColors: Record<string, string> = { corrida: '#4ade80', carrera: '#fbbf24', track: '#22d3ee', social: '#818cf8' }
+
   if (loading) return (
     <div style={{ background: '#080808', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: '14px' }}>
       Cargando panel...
@@ -205,36 +308,30 @@ export default function AdminPage() {
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', sans-serif; }
-    .admin-wrap { font-family: 'Inter', sans-serif; background: #080808; min-height: 100vh; color: #fff; display: flex; flex-direction: column; overflow: hidden; height: 100vh; }
+    .admin-wrap { font-family: 'Inter', sans-serif; background: #080808; color: #fff; display: flex; flex-direction: column; overflow: hidden; height: 100vh; }
     .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; border-bottom: 0.5px solid rgba(255,255,255,0.07); background: #0d0d0d; flex-shrink: 0; }
     .topbar-left { display: flex; align-items: center; gap: 12px; }
-    .topbar-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
-    .topbar-logo-text { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.6); font-family: Inter, sans-serif; }
+    .topbar-logo-text { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.6); font-family: Inter, sans-serif; text-decoration: none; }
     .topbar-sep { color: rgba(255,255,255,0.15); font-size: 16px; }
     .topbar-title { font-size: 14px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 7px; }
-    .admin-badge { font-size: 10px; background: rgba(251,191,36,0.15); color: #fbbf24; border: 0.5px solid rgba(251,191,36,0.3); border-radius: 999px; padding: 2px 10px; font-weight: 600; letter-spacing: .04em; }
+    .admin-badge { font-size: 10px; background: rgba(251,191,36,0.15); color: #fbbf24; border: 0.5px solid rgba(251,191,36,0.3); border-radius: 999px; padding: 2px 10px; font-weight: 600; }
     .topbar-right { display: flex; align-items: center; gap: 12px; }
-    .topbar-btn { background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 7px 14px; font-size: 12px; color: rgba(255,255,255,0.5); cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; transition: all .15s; text-decoration: none; }
+    .topbar-btn { background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 7px 14px; font-size: 12px; color: rgba(255,255,255,0.5); cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; text-decoration: none; }
     .topbar-btn:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.8); }
     .notif-dot { width: 7px; height: 7px; background: #fb7185; border-radius: 50%; }
-    .avatar-admin { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #0a0a0a; }
+    .avatar-admin { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #fbbf24, #f59e0b); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #0a0a0a; flex-shrink: 0; }
     .app { display: grid; grid-template-columns: 220px 1fr; flex: 1; overflow: hidden; }
     .sidebar { border-right: 0.5px solid rgba(255,255,255,0.07); background: #0d0d0d; display: flex; flex-direction: column; overflow-y: auto; }
     .sidebar-section { padding: 20px 12px 8px; }
     .sidebar-label { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,0.2); padding: 0 8px; margin-bottom: 6px; }
-    .nav-item { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 8px; cursor: pointer; transition: all .15s; color: rgba(255,255,255,0.45); font-size: 13px; background: none; border: none; font-family: inherit; width: 100%; text-align: left; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.45); font-size: 13px; background: none; border: none; font-family: inherit; width: 100%; text-align: left; transition: all .15s; }
     .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); }
     .nav-item.active { background: rgba(255,255,255,0.08); color: #fff; font-weight: 500; }
-    .nav-item svg { width: 16px; height: 16px; stroke: currentColor; flex-shrink: 0; }
     .nav-badge { margin-left: auto; font-size: 10px; border-radius: 999px; padding: 2px 7px; font-weight: 600; }
     .nb-red { background: rgba(251,113,133,0.15); color: #fb7185; }
     .nb-amber { background: rgba(251,191,36,0.15); color: #fbbf24; }
     .nb-green { background: rgba(74,222,128,0.15); color: #4ade80; }
     .sidebar-footer { margin-top: auto; padding: 16px 12px; border-top: 0.5px solid rgba(255,255,255,0.06); }
-    .sidebar-user { display: flex; align-items: center; gap: 8px; }
-    .sidebar-user-name { font-size: 13px; font-weight: 500; color: #fff; }
-    .sidebar-user-role { font-size: 11px; color: #fbbf24; }
     .main { overflow-y: auto; padding: 28px 32px; }
     .main::-webkit-scrollbar { width: 4px; }
     .main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
@@ -242,14 +339,13 @@ export default function AdminPage() {
     .page-title { font-size: 22px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 4px; }
     .page-sub { font-size: 13px; color: rgba(255,255,255,0.35); }
     .page-actions { display: flex; gap: 8px; }
-    .btn-primary { display: flex; align-items: center; gap: 7px; background: #fff; color: #0a0a0a; border: none; border-radius: 10px; padding: 0 18px; height: 40px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity .15s; }
+    .btn-primary { display: flex; align-items: center; gap: 7px; background: #fff; color: #0a0a0a; border: none; border-radius: 10px; padding: 0 18px; height: 40px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
     .btn-primary:hover { opacity: .88; }
-    .btn-secondary { display: flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0 16px; height: 40px; font-size: 13px; color: rgba(255,255,255,0.6); font-family: inherit; cursor: pointer; transition: all .15s; }
-    .btn-secondary:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .btn-secondary { display: flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0 16px; height: 40px; font-size: 13px; color: rgba(255,255,255,0.6); font-family: inherit; cursor: pointer; }
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
     .kpi-card { background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px 20px; }
     .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .kpi-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .kpi-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
     .ki-green { background: rgba(74,222,128,0.1); color: #4ade80; }
     .ki-blue { background: rgba(34,211,238,0.1); color: #22d3ee; }
     .ki-amber { background: rgba(251,191,36,0.1); color: #fbbf24; }
@@ -284,7 +380,7 @@ export default function AdminPage() {
     .pp-pace { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.5); }
     .pp-elite { background: rgba(34,211,238,0.1); color: #22d3ee; }
     .row-actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
-    .row-btn { background: rgba(255,255,255,0.06); border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; color: rgba(255,255,255,0.5); cursor: pointer; font-family: inherit; transition: all .15s; }
+    .row-btn { background: rgba(255,255,255,0.06); border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; color: rgba(255,255,255,0.5); cursor: pointer; font-family: inherit; }
     .row-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
     .row-btn.danger { color: #fb7185; }
     .row-btn.danger:hover { background: rgba(251,113,133,0.1); }
@@ -300,15 +396,13 @@ export default function AdminPage() {
     .mod-item { background: rgba(255,255,255,0.02); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; display: flex; gap: 14px; }
     .mod-thumb { width: 72px; height: 72px; background: rgba(255,255,255,0.05); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
     .mod-thumb img { width: 100%; height: 100%; object-fit: cover; }
-    .mod-info { flex: 1; min-width: 0; }
+    .mod-info { flex: 1; }
     .mod-type { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,0.25); margin-bottom: 4px; }
-    .mod-text { font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px; line-height: 1.4; }
+    .mod-text { font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px; }
     .mod-meta { font-size: 11px; color: rgba(255,255,255,0.25); margin-bottom: 10px; }
     .mod-btns { display: flex; gap: 6px; }
-    .mod-approve { background: rgba(74,222,128,0.1); border: 0.5px solid rgba(74,222,128,0.2); color: #4ade80; border-radius: 7px; padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; }
-    .mod-approve:hover { background: rgba(74,222,128,0.2); }
-    .mod-reject { background: rgba(251,113,133,0.08); border: 0.5px solid rgba(251,113,133,0.18); color: #fb7185; border-radius: 7px; padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; }
-    .mod-reject:hover { background: rgba(251,113,133,0.15); }
+    .mod-approve { background: rgba(74,222,128,0.1); border: 0.5px solid rgba(74,222,128,0.2); color: #4ade80; border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
+    .mod-reject { background: rgba(251,113,133,0.08); border: 0.5px solid rgba(251,113,133,0.18); color: #fb7185; border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
     .sponsor-list { display: flex; flex-direction: column; gap: 10px; }
     .sponsor-item { background: rgba(255,255,255,0.02); border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 16px; }
     .sponsor-logo { width: 48px; height: 48px; border-radius: 8px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; font-size: 18px; }
@@ -318,23 +412,49 @@ export default function AdminPage() {
     .modal { background: #141414; border: 0.5px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 32px; width: 100%; max-width: 520px; margin: auto; }
     .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
     .modal h2 { font-size: 18px; font-weight: 600; }
-    .modal-close-btn { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.3); font-family: inherit; font-size: 13px; display: flex; align-items: center; gap: 4px; }
+    .modal-close-btn { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.3); font-family: inherit; font-size: 13px; }
     .modal label { display: block; font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
     .modal input, .modal select, .modal textarea { width: 100%; background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 9px; padding: 0 12px; height: 42px; color: #fff; font-size: 14px; font-family: inherit; outline: none; margin-bottom: 14px; box-sizing: border-box; }
     .modal textarea { height: auto; padding: 10px 12px; resize: vertical; }
-    .modal input:focus, .modal select:focus, .modal textarea:focus { border-color: rgba(255,255,255,0.25); }
     .modal-submit { width: 100%; height: 44px; background: #fff; color: #0a0a0a; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
-    .modal-submit:hover { opacity: .9; }
     .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .logo-upload-area { border: 1.5px dashed rgba(255,255,255,0.15); border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; transition: all .2s; margin-bottom: 14px; }
-    .logo-upload-area:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.03); }
-    .logo-preview { width: 80px; height: 80px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; overflow: hidden; }
-    .logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+    .upload-area { border: 1.5px dashed rgba(255,255,255,0.15); border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; margin-bottom: 14px; }
+    .upload-area:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.03); }
+    .upload-preview { width: 100%; height: 120px; border-radius: 8px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; overflow: hidden; }
+    .upload-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .logo-preview-sm { width: 60px; height: 60px; border-radius: 8px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; overflow: hidden; }
+    .logo-preview-sm img { width: 100%; height: 100%; object-fit: contain; }
     .preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .preview-card { background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px; text-decoration: none; display: block; transition: border-color .2s; }
+    .preview-card { background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px; text-decoration: none; display: block; }
     .preview-card:hover { border-color: rgba(255,255,255,0.2); }
-    .info-note { display: flex; align-items: flex-start; gap: 8px; background: rgba(251,191,36,0.05); border: 0.5px solid rgba(251,191,36,0.15); border-radius: 10px; padding: 12px 14px; font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.6; margin-top: 16px; }
+    .chat-wrap { background: rgba(255,255,255,0.02); border: 0.5px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; height: 480px; display: flex; flex-direction: column; }
+    .chat-header { padding: 14px 20px; border-bottom: 0.5px solid rgba(255,255,255,0.07); font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: space-between; }
+    .chat-list { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px; }
+    .chat-msg { padding: 8px 12px; border-radius: 8px; }
+    .chat-msg:hover { background: rgba(255,255,255,0.03); }
+    .chat-msg:hover .msg-actions { opacity: 1; }
+    .chat-msg-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+    .chat-msg-name { font-size: 13px; font-weight: 500; color: #fff; }
+    .chat-msg-time { font-size: 11px; color: rgba(255,255,255,0.2); }
+    .chat-msg-content { font-size: 13px; color: rgba(255,255,255,0.65); line-height: 1.5; }
+    .msg-actions { display: flex; gap: 4px; opacity: 0; margin-top: 4px; }
+    .msg-btn { background: rgba(255,255,255,0.06); border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; color: rgba(255,255,255,0.5); cursor: pointer; font-family: inherit; }
+    .msg-btn.danger { color: #fb7185; }
+    .channel-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+    .channel-item:last-child { border-bottom: none; }
+    .channel-item:hover .row-actions { opacity: 1; }
+    .info-note { background: rgba(251,191,36,0.05); border: 0.5px solid rgba(251,191,36,0.15); border-radius: 10px; padding: 12px 14px; font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.6; margin-top: 16px; }
+    .pagos-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 24px; }
+    .pagos-card { background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 20px; }
   `
+
+  const activityLog = [
+    { text: '<strong>Ana López</strong> se unió al plan Pace', time: 'Hace 12 minutos', icon: '👤', color: 'ki-green' },
+    { text: '<strong>Roberto Suárez</strong> renovó su membresía Elite · RD$2,000', time: 'Hace 34 minutos', icon: '💳', color: 'ki-amber' },
+    { text: '<strong>3 fotos nuevas</strong> esperan moderación en la galería', time: 'Hace 1 hora', icon: '📸', color: 'ki-red' },
+    { text: '<strong>Miguel Rodríguez</strong> publicó un nuevo hilo en el foro', time: 'Hace 2 horas', icon: '💬', color: 'ki-blue' },
+    { text: '<strong>Carlos Méndez</strong> canceló su membresía Pace', time: 'Hace 3 horas', icon: '✕', color: 'ki-red' },
+  ]
 
   return (
     <>
@@ -344,78 +464,49 @@ export default function AdminPage() {
         {/* TOPBAR */}
         <div className="topbar">
           <div className="topbar-left">
-            <a href="/" className="topbar-logo">
-              <span className="topbar-logo-text">SRC</span>
-            </a>
+            <a href="/" className="topbar-logo-text">SRC</a>
             <span className="topbar-sep">/</span>
-            <div className="topbar-title">
-              Panel de Administración
-              <span className="admin-badge">SUPER ADMIN</span>
-            </div>
+            <div className="topbar-title">Panel de Administración <span className="admin-badge">SUPER ADMIN</span></div>
           </div>
           <div className="topbar-right">
             <a href="/" target="_blank" className="topbar-btn">Ver sitio ↗</a>
-            <div className="topbar-btn">
-              <div className="notif-dot"></div>
-              {stats.pendingContent || 5} pendientes
-            </div>
+            <div className="topbar-btn"><div className="notif-dot"></div>{stats.pendingContent || 5} pendientes</div>
             <div className="avatar-admin">{adminName}</div>
           </div>
         </div>
 
         <div className="app">
-
           {/* SIDEBAR */}
           <aside className="sidebar">
             <div className="sidebar-section">
               <div className="sidebar-label">Principal</div>
-              <button className={`nav-item ${panel === 'overview' ? 'active' : ''}`} onClick={() => setPanel('overview')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                Overview
-              </button>
+              <button className={`nav-item ${panel === 'overview' ? 'active' : ''}`} onClick={() => setPanel('overview')}>📊 Overview</button>
             </div>
-
             <div className="sidebar-section">
               <div className="sidebar-label">Gestión</div>
               <button className={`nav-item ${panel === 'miembros' ? 'active' : ''}`} onClick={() => setPanel('miembros')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-                Miembros
-                <span className="nav-badge nb-green">{stats.totalMembers}</span>
+                👥 Miembros <span className="nav-badge nb-green">{stats.totalMembers}</span>
               </button>
-              <button className={`nav-item ${panel === 'admins' ? 'active' : ''}`} onClick={() => setPanel('admins')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                Patrocinadores
-              </button>
-              <button className={`nav-item ${panel === 'eventos' ? 'active' : ''}`} onClick={() => setPanel('eventos')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                Eventos
-              </button>
+              <button className={`nav-item ${panel === 'pagos' ? 'active' : ''}`} onClick={() => setPanel('pagos')}>💳 Pagos y membresías</button>
+              <button className={`nav-item ${panel === 'eventos' ? 'active' : ''}`} onClick={() => setPanel('eventos')}>📅 Eventos</button>
+              <button className={`nav-item ${panel === 'admins' ? 'active' : ''}`} onClick={() => setPanel('admins')}>🏷️ Patrocinadores</button>
             </div>
-
             <div className="sidebar-section">
-              <div className="sidebar-label">Moderación</div>
+              <div className="sidebar-label">Comunidad</div>
               <button className={`nav-item ${panel === 'moderacion' ? 'active' : ''}`} onClick={() => setPanel('moderacion')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Contenido
-                {stats.pendingContent > 0 && <span className="nav-badge nb-red">{stats.pendingContent}</span>}
+                🛡️ Moderación {stats.pendingContent > 0 && <span className="nav-badge nb-red">{stats.pendingContent}</span>}
               </button>
+              <button className={`nav-item ${panel === 'chat' ? 'active' : ''}`} onClick={() => setPanel('chat')}>💬 Chat Comunidad</button>
+              <button className={`nav-item ${panel === 'foro' ? 'active' : ''}`} onClick={() => setPanel('foro')}>📝 Foro y canales</button>
             </div>
-
             <div className="sidebar-section">
               <div className="sidebar-label">Vista Rápida</div>
-              <button className={`nav-item ${panel === 'preview' ? 'active' : ''}`} onClick={() => setPanel('preview')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                Ver todas las páginas
-              </button>
+              <button className={`nav-item ${panel === 'preview' ? 'active' : ''}`} onClick={() => setPanel('preview')}>👁️ Ver todas las páginas</button>
             </div>
-
             <div className="sidebar-footer">
-              <div className="sidebar-user">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div className="avatar-admin" style={{ width: 32, height: 32, fontSize: 12 }}>{adminName}</div>
-                <div>
-                  <div className="sidebar-user-name">Super Admin</div>
-                  <div className="sidebar-user-role">⭐ Acceso total</div>
-                </div>
+                <div><div style={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>Super Admin</div><div style={{ fontSize: 11, color: '#fbbf24' }}>⭐ Acceso total</div></div>
               </div>
               <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.25)', fontFamily: 'inherit', padding: '8px 0', marginTop: 12, display: 'block' }}>
                 Cerrar sesión
@@ -423,35 +514,19 @@ export default function AdminPage() {
             </div>
           </aside>
 
-          {/* MAIN */}
           <main className="main">
 
             {/* OVERVIEW */}
             {panel === 'overview' && (
               <div>
                 <div className="page-header">
-                  <div>
-                    <div className="page-title">Overview</div>
-                    <div className="page-sub">Resumen general del club · {new Date().toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                  </div>
+                  <div><div className="page-title">Overview</div><div className="page-sub">Resumen general · {new Date().toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
                 </div>
                 <div className="kpi-grid">
-                  <div className="kpi-card">
-                    <div className="kpi-top"><div className="kpi-icon ki-green"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><span className="kpi-trend trend-up">↑ +12</span></div>
-                    <div className="kpi-value">{stats.activeMembers || 340}</div><div className="kpi-label">Miembros activos</div>
-                  </div>
-                  <div className="kpi-card">
-                    <div className="kpi-top"><div className="kpi-icon ki-amber"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div><span className="kpi-trend trend-up">↑ +8%</span></div>
-                    <div className="kpi-value">RD$<span style={{ fontSize: 20 }}>487K</span></div><div className="kpi-label">Ingresos este mes</div>
-                  </div>
-                  <div className="kpi-card">
-                    <div className="kpi-top"><div className="kpi-icon ki-blue"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><span className="kpi-trend trend-up">↑ 2 nuevos</span></div>
-                    <div className="kpi-value">8</div><div className="kpi-label">Eventos este mes</div>
-                  </div>
-                  <div className="kpi-card">
-                    <div className="kpi-top"><div className="kpi-icon ki-red"><svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span className="kpi-trend trend-dn">{stats.pendingContent || 5} pendientes</span></div>
-                    <div className="kpi-value">{stats.pendingContent || 5}</div><div className="kpi-label">Contenido por moderar</div>
-                  </div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-green">👥</div><span className="kpi-trend trend-up">↑ +12</span></div><div className="kpi-value">{stats.activeMembers || 0}</div><div className="kpi-label">Miembros activos</div></div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-amber">💳</div><span className="kpi-trend trend-up">↑ +8%</span></div><div className="kpi-value">RD$<span style={{ fontSize: 20 }}>487K</span></div><div className="kpi-label">Ingresos este mes</div></div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-blue">📅</div><span className="kpi-trend trend-up">↑ 2 nuevos</span></div><div className="kpi-value">{events.length || 0}</div><div className="kpi-label">Eventos activos</div></div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-red">🛡️</div><span className="kpi-trend trend-dn">{stats.pendingContent} pendientes</span></div><div className="kpi-value">{stats.pendingContent}</div><div className="kpi-label">Contenido por moderar</div></div>
                 </div>
                 <div className="table-wrap">
                   <div className="table-header"><div className="table-title">Actividad reciente</div></div>
@@ -476,9 +551,9 @@ export default function AdminPage() {
             {panel === 'miembros' && (
               <div>
                 <div className="page-header">
-                  <div><div className="page-title">Miembros</div><div className="page-sub">{stats.totalMembers} miembros · {stats.activeMembers} activos</div></div>
+                  <div><div className="page-title">Miembros</div><div className="page-sub">{stats.totalMembers} total · {stats.activeMembers} activos</div></div>
                   <div className="page-actions">
-                    <button className="btn-secondary">📥 Exportar CSV</button>
+                    <button className="btn-primary" onClick={() => { setIsNewMember(true); setEditingMember(null); setMemberForm({ full_name: '', email: '', phone: '', plan: 'pace', plan_status: 'active', level: 'bronce' }); setMemberMsg(''); setShowMemberModal(true) }}>+ Agregar miembro</button>
                   </div>
                 </div>
                 <div className="table-wrap">
@@ -502,7 +577,7 @@ export default function AdminPage() {
                           <td style={{ color: 'rgba(255,255,255,0.5)' }}>{m.level}</td>
                           <td style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{new Date(m.created_at).toLocaleDateString('es-DO')}</td>
                           <td><div className="row-actions">
-                            <button className="row-btn" onClick={() => { setEditingMember(m); setMemberForm({ full_name: m.full_name || '', email: m.email || '', phone: m.phone || '', plan: m.plan, plan_status: m.plan_status, level: m.level }); setShowMemberModal(true) }}>Editar</button>
+                            <button className="row-btn" onClick={() => { setIsNewMember(false); setEditingMember(m); setMemberForm({ full_name: m.full_name || '', email: m.email || '', phone: m.phone || '', plan: m.plan, plan_status: m.plan_status, level: m.level }); setMemberMsg(''); setShowMemberModal(true) }}>Editar</button>
                             {m.plan_status === 'pending' && <button className="row-btn success" onClick={() => updateMemberStatus(m.id, 'active')}>Aprobar</button>}
                             {m.plan_status === 'active' && <button className="row-btn danger" onClick={() => updateMemberStatus(m.id, 'suspended')}>Suspender</button>}
                             {m.plan_status === 'suspended' && <button className="row-btn success" onClick={() => updateMemberStatus(m.id, 'active')}>Reactivar</button>}
@@ -516,42 +591,88 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* PATROCINADORES */}
-            {panel === 'admins' && (
+            {/* PAGOS */}
+            {panel === 'pagos' && (
               <div>
                 <div className="page-header">
-                  <div><div className="page-title">Patrocinadores</div><div className="page-sub">{sponsors.length} patrocinadores registrados</div></div>
-                  <div className="page-actions">
-                    <button className="btn-primary" onClick={openNewSponsor}>+ Nuevo patrocinador</button>
-                  </div>
+                  <div><div className="page-title">Pagos y membresías</div><div className="page-sub">Gestión de cobros y suscripciones</div></div>
                 </div>
-                <div className="sponsor-list">
-                  {sponsors.map(sp => (
-                    <div key={sp.id} className="sponsor-item">
-                      <div className="sponsor-logo">
-                        {sp.logo_url ? <img src={sp.logo_url} alt={sp.name} /> : <span style={{ fontSize: 24 }}>🏷️</span>}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 14, fontWeight: 500 }}>{sp.name}</span>
-                          {sp.featured && <span style={{ fontSize: 10, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '0.5px solid rgba(251,191,36,0.2)', borderRadius: 999, padding: '2px 8px' }}>⭐ Principal</span>}
-                          {!sp.active && <span style={{ fontSize: 10, background: 'rgba(251,113,133,0.1)', color: '#fb7185', borderRadius: 999, padding: '2px 8px' }}>Inactivo</span>}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
-                          {sp.category && `${sp.category} · `}{sp.discount_code && `Código: ${sp.discount_code} · `}{sp.website_url}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="row-btn" onClick={() => openEditSponsor(sp)}>Editar</button>
-                        <button className="row-btn danger" onClick={() => deleteSponsor(sp.id)}>Desactivar</button>
-                      </div>
+                <div className="pagos-grid">
+                  {[
+                    { label: 'Ingresos del mes', value: 'RD$487,500', sub: '+8% vs mes anterior', color: '#4ade80' },
+                    { label: 'Membresías activas', value: String(stats.activeMembers), sub: `${members.filter(m => m.plan === 'elite').length} Elite · ${members.filter(m => m.plan === 'pace').length} Pace`, color: '#22d3ee' },
+                    { label: 'Pagos pendientes', value: String(members.filter(m => m.plan_status === 'pending').length), sub: 'Requieren verificación', color: '#fbbf24' },
+                  ].map((card, i) => (
+                    <div key={i} className="pagos-card">
+                      <div style={{ fontSize: 28, fontWeight: 700, color: card.color, marginBottom: 6 }}>{card.value}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.label}</div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{card.sub}</div>
                     </div>
                   ))}
-                  {sponsors.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 14 }}>
-                      No hay patrocinadores. Agrega el primero con el botón de arriba.
-                    </div>
-                  )}
+                </div>
+                <div className="table-wrap">
+                  <div className="table-header"><div className="table-title">Estado de pagos por miembro</div></div>
+                  <table>
+                    <thead><tr><th>Miembro</th><th>Plan</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                      {members.map(m => (
+                        <tr key={m.id}>
+                          <td><div className="member-cell">
+                            <div className="member-av" style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}>{m.full_name?.charAt(0)?.toUpperCase()}</div>
+                            <div><div className="member-name">{m.full_name}</div><div className="member-email">{m.email}</div></div>
+                          </div></td>
+                          <td><span className={`plan-pill ${m.plan === 'elite' ? 'pp-elite' : 'pp-pace'}`}>{m.plan}</span></td>
+                          <td><span className={`status-pill ${m.plan_status === 'active' ? 'sp-active' : m.plan_status === 'pending' ? 'sp-pending' : 'sp-suspended'}`}>● {m.plan_status}</span></td>
+                          <td><div className="row-actions">
+                            {m.plan_status === 'pending' && <button className="row-btn success" onClick={() => updateMemberStatus(m.id, 'active')}>Confirmar pago</button>}
+                            {m.plan_status === 'active' && <button className="row-btn danger" onClick={() => updateMemberStatus(m.id, 'suspended')}>Suspender</button>}
+                            {m.plan_status === 'suspended' && <button className="row-btn success" onClick={() => updateMemberStatus(m.id, 'active')}>Reactivar</button>}
+                          </div></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="info-note">💡 Para pagos automáticos configura STRIPE_SECRET_KEY en el .env.local.</div>
+              </div>
+            )}
+
+            {/* EVENTOS */}
+            {panel === 'eventos' && (
+              <div>
+                <div className="page-header">
+                  <div><div className="page-title">Eventos</div><div className="page-sub">{events.length} eventos registrados</div></div>
+                  <div className="page-actions"><button className="btn-primary" onClick={openNewEvent}>+ Nuevo evento</button></div>
+                </div>
+                <div className="table-wrap">
+                  <div className="table-header"><div className="table-title">Todos los eventos</div></div>
+                  <table>
+                    <thead><tr><th>Evento</th><th>Tipo</th><th>Fecha</th><th>Ubicación</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                      {events.map(ev => (
+                        <tr key={ev.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              {ev.image_url && <img src={ev.image_url} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />}
+                              <div>
+                                <div className="member-name">{ev.title}</div>
+                                {ev.distance && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{ev.distance}</div>}
+                              </div>
+                            </div>
+                          </td>
+                          <td><span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 999, background: `${eventTypeColors[ev.type] || '#fff'}18`, color: eventTypeColors[ev.type] || '#fff' }}>{ev.type}{ev.elite_only ? ' · Elite' : ''}</span></td>
+                          <td style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>{ev.date ? new Date(ev.date).toLocaleDateString('es-DO') : '—'}</td>
+                          <td style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{ev.location || '—'}</td>
+                          <td><span className={`status-pill ${ev.status === 'active' ? 'sp-active' : 'sp-suspended'}`}>● {ev.status}</span></td>
+                          <td><div className="row-actions">
+                            <button className="row-btn" onClick={() => openEditEvent(ev)}>Editar</button>
+                            <button className="row-btn danger" onClick={() => deleteEvent(ev.id)}>Eliminar</button>
+                          </div></td>
+                        </tr>
+                      ))}
+                      {events.length === 0 && <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.25)' }}>No hay eventos. Crea el primero.</td></tr>}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -560,21 +681,20 @@ export default function AdminPage() {
             {panel === 'moderacion' && (
               <div>
                 <div className="page-header">
-                  <div><div className="page-title">Moderación de contenido</div><div className="page-sub">{pendingPhotos.length} fotos pendientes de revisión</div></div>
+                  <div><div className="page-title">Moderación de contenido</div><div className="page-sub">Fotos subidas por miembros que esperan aprobación</div></div>
                 </div>
                 {pendingPhotos.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 14 }}>
-                    ✓ No hay contenido pendiente de moderación
+                  <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 14, fontSize: 14 }}>
+                    ✓ No hay contenido pendiente de moderación.<br/>
+                    <span style={{ fontSize: 12, marginTop: 8, display: 'block' }}>Cuando los miembros suban fotos a la galería aparecerán aquí para aprobar o rechazar.</span>
                   </div>
                 ) : (
                   <div className="mod-grid">
                     {pendingPhotos.map(photo => (
                       <div key={photo.id} className="mod-item">
-                        <div className="mod-thumb">
-                          {photo.url ? <img src={photo.url} alt="" /> : <span style={{ fontSize: 24 }}>📸</span>}
-                        </div>
+                        <div className="mod-thumb">{photo.url ? <img src={photo.url} alt="" /> : <span style={{ fontSize: 24 }}>📸</span>}</div>
                         <div className="mod-info">
-                          <div className="mod-type">📷 Foto · comunidad</div>
+                          <div className="mod-type">📷 Foto · galería comunidad</div>
                           <div className="mod-text">{photo.caption || 'Sin descripción'}</div>
                           <div className="mod-meta">Por {photo.uploader?.full_name || 'Miembro'} · {new Date(photo.created_at).toLocaleDateString('es-DO')}</div>
                           <div className="mod-btns">
@@ -586,23 +706,136 @@ export default function AdminPage() {
                     ))}
                   </div>
                 )}
-                <div className="info-note" style={{ marginTop: 24 }}>
-                  💡 Los hilos del foro reportados aparecerán aquí cuando los miembros los reporten. El chat en tiempo real requiere configurar Pusher.
+              </div>
+            )}
+
+            {/* CHAT COMUNIDAD */}
+            {panel === 'chat' && (
+              <div>
+                <div className="page-header">
+                  <div><div className="page-title">Chat · Comunidad</div><div className="page-sub">{messages.length} mensajes · modera en tiempo real</div></div>
+                </div>
+                <div className="chat-wrap">
+                  <div className="chat-header">
+                    💬 Canal Comunidad
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{messages.length} mensajes</span>
+                  </div>
+                  <div className="chat-list">
+                    {messages.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: 32, color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>
+                        No hay mensajes todavía
+                      </div>
+                    )}
+                    {messages.map(msg => (
+                      <div key={msg.id} className="chat-msg">
+                        <div className="chat-msg-header">
+                          <span className="chat-msg-name">{msg.profile?.full_name || 'Miembro'}</span>
+                          {msg.profile?.plan === 'elite' && <span style={{ fontSize: 10, color: '#22d3ee', fontWeight: 600 }}>Elite</span>}
+                          <span className="chat-msg-time">{new Date(msg.created_at).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })} · {new Date(msg.created_at).toLocaleDateString('es-DO')}</span>
+                          {msg.pinned && <span style={{ fontSize: 10, color: '#fbbf24' }}>📌</span>}
+                        </div>
+                        <div className="chat-msg-content">{msg.content}</div>
+                        <div className="msg-actions">
+                          <button className="msg-btn" onClick={() => pinMessage(msg.id, msg.pinned)}>{msg.pinned ? 'Desfijar' : '📌 Fijar'}</button>
+                          <button className="msg-btn danger" onClick={() => deleteMessage(msg.id)}>✕ Eliminar</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="info-note">💡 Los mensajes se actualizan al recargar. Para tiempo real configura Pusher en .env.local</div>
+              </div>
+            )}
+
+            {/* FORO Y CANALES */}
+            {panel === 'foro' && (
+              <div>
+                <div className="page-header">
+                  <div><div className="page-title">Foro y canales</div><div className="page-sub">{threads.length} hilos · {channels.length} canales</div></div>
+                  <div className="page-actions">
+                    <button className="btn-secondary" onClick={() => { setChannelForm({ name: '', emoji: '', elite_only: false }); setChannelMsg(''); setShowChannelModal(true) }}>+ Canal</button>
+                  </div>
+                </div>
+
+                {/* CANALES */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.25)', marginBottom: 12 }}>Canales del chat</div>
+                  <div className="table-wrap">
+                    {channels.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>No hay canales. Crea el primero.</div>
+                    ) : (
+                      channels.map(ch => (
+                        <div key={ch.id} className="channel-item">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 18 }}>{ch.emoji || '#'}</span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>{ch.name}</div>
+                              {ch.elite_only && <div style={{ fontSize: 11, color: '#22d3ee' }}>Solo Elite</div>}
+                            </div>
+                          </div>
+                          <div className="row-actions">
+                            <button className="row-btn danger" onClick={() => deleteChannel(ch.id)}>Eliminar</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* HILOS DEL FORO */}
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.25)', marginBottom: 12 }}>Hilos del foro</div>
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Hilo</th><th>Categoría</th><th>Autor</th><th>Fecha</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                      {threads.map(thread => (
+                        <tr key={thread.id}>
+                          <td>
+                            <div className="member-name">{thread.pinned && '📌 '}{thread.title}</div>
+                            {thread.content && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{thread.content.substring(0, 60)}...</div>}
+                          </td>
+                          <td><span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>{thread.category}</span></td>
+                          <td style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{thread.profile?.full_name || '—'}</td>
+                          <td style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{new Date(thread.created_at).toLocaleDateString('es-DO')}</td>
+                          <td><div className="row-actions">
+                            <button className="row-btn" onClick={() => pinThread(thread.id, thread.pinned)}>{thread.pinned ? 'Desfijar' : '📌 Fijar'}</button>
+                            <button className="row-btn danger" onClick={() => deleteThread(thread.id)}>Eliminar</button>
+                          </div></td>
+                        </tr>
+                      ))}
+                      {threads.length === 0 && <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.25)' }}>No hay hilos en el foro todavía</td></tr>}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
-            {/* EVENTOS */}
-            {panel === 'eventos' && (
+            {/* PATROCINADORES */}
+            {panel === 'admins' && (
               <div>
                 <div className="page-header">
-                  <div><div className="page-title">Gestión de eventos</div><div className="page-sub">Crea y gestiona los eventos del club</div></div>
-                  <div className="page-actions">
-                    <button className="btn-primary">+ Nuevo evento</button>
-                  </div>
+                  <div><div className="page-title">Patrocinadores</div><div className="page-sub">{sponsors.length} registrados</div></div>
+                  <div className="page-actions"><button className="btn-primary" onClick={openNewSponsor}>+ Nuevo patrocinador</button></div>
                 </div>
-                <div className="info-note">
-                  💡 Los eventos se crean aquí y aparecen automáticamente en la página de Eventos de los miembros. Próximamente con inscripciones en tiempo real.
+                <div className="sponsor-list">
+                  {sponsors.map(sp => (
+                    <div key={sp.id} className="sponsor-item">
+                      <div className="sponsor-logo">{sp.logo_url ? <img src={sp.logo_url} alt={sp.name} /> : <span>🏷️</span>}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 14, fontWeight: 500 }}>{sp.name}</span>
+                          {sp.featured && <span style={{ fontSize: 10, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '0.5px solid rgba(251,191,36,0.2)', borderRadius: 999, padding: '2px 8px' }}>⭐ Principal</span>}
+                          {!sp.active && <span style={{ fontSize: 10, background: 'rgba(251,113,133,0.1)', color: '#fb7185', borderRadius: 999, padding: '2px 8px' }}>Inactivo</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>{sp.category && `${sp.category} · `}{sp.discount_code && `Código: ${sp.discount_code} · `}{sp.website_url}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="row-btn" onClick={() => openEditSponsor(sp)}>Editar</button>
+                        <button className="row-btn danger" onClick={async () => { await supabase.from('sponsors').update({ active: false }).eq('id', sp.id); loadData(); toast('✓ Desactivado') }}>Desactivar</button>
+                      </div>
+                    </div>
+                  ))}
+                  {sponsors.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 14 }}>No hay patrocinadores. Agrega el primero.</div>}
                 </div>
               </div>
             )}
@@ -610,9 +843,7 @@ export default function AdminPage() {
             {/* PREVIEW */}
             {panel === 'preview' && (
               <div>
-                <div className="page-header">
-                  <div><div className="page-title">Ver sitio completo</div><div className="page-sub">Accede a cualquier página directamente</div></div>
-                </div>
+                <div className="page-header"><div><div className="page-title">Ver sitio completo</div><div className="page-sub">Accede a cualquier página directamente</div></div></div>
                 <div className="preview-grid">
                   {sitePages.map(page => (
                     <a key={page.href} href={page.href} target="_blank" rel="noreferrer" className="preview-card">
@@ -631,6 +862,76 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* MODAL EVENTO */}
+      <div className={`modal-overlay ${showEventModal ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowEventModal(false)}>
+        <div className="modal">
+          <div className="modal-head">
+            <h2>{editingEvent ? 'Editar evento' : 'Nuevo evento'}</h2>
+            <button className="modal-close-btn" onClick={() => setShowEventModal(false)}>✕ Cerrar</button>
+          </div>
+          <label>Imagen del evento</label>
+          <div className="upload-area" onClick={() => eventImageRef.current?.click()}>
+            <div className="upload-preview">
+              {eventImagePreview ? <img src={eventImagePreview} alt="Preview" /> : <span style={{ fontSize: 32, color: 'rgba(255,255,255,0.15)' }}>📸</span>}
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Haz clic para subir imagen</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>PNG, JPG · máx 5MB</div>
+          </div>
+          <input ref={eventImageRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEventImageChange} />
+          <label>Título *</label>
+          <input value={eventForm.title} onChange={e => setEventForm(p => ({ ...p, title: e.target.value }))} placeholder="Ej: Corrida grupal · Sábado" />
+          <div className="form-grid-2">
+            <div><label>Tipo</label>
+              <select value={eventForm.type} onChange={e => setEventForm(p => ({ ...p, type: e.target.value }))}>
+                <option value="corrida">Corrida grupal</option>
+                <option value="carrera">Carrera oficial</option>
+                <option value="track">Track day</option>
+                <option value="social">Actividad social</option>
+              </select>
+            </div>
+            <div><label>Fecha</label><input type="date" value={eventForm.date} onChange={e => setEventForm(p => ({ ...p, date: e.target.value }))} /></div>
+            <div><label>Ubicación</label><input value={eventForm.location} onChange={e => setEventForm(p => ({ ...p, location: e.target.value }))} placeholder="Av. Circunvalación" /></div>
+            <div><label>Distancia</label><input value={eventForm.distance} onChange={e => setEventForm(p => ({ ...p, distance: e.target.value }))} placeholder="5K, 10K, 21K..." /></div>
+            <div><label>Capacidad máxima</label><input type="number" value={eventForm.max_capacity} onChange={e => setEventForm(p => ({ ...p, max_capacity: e.target.value }))} placeholder="50" /></div>
+            <div><label>Estado</label>
+              <select value={eventForm.status} onChange={e => setEventForm(p => ({ ...p, status: e.target.value }))}>
+                <option value="active">Activo</option>
+                <option value="cancelled">Cancelado</option>
+                <option value="completed">Completado</option>
+              </select>
+            </div>
+          </div>
+          <label>Descripción</label>
+          <textarea value={eventForm.description} onChange={e => setEventForm(p => ({ ...p, description: e.target.value }))} placeholder="Descripción del evento..." rows={3} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <input type="checkbox" id="elite_only" checked={eventForm.elite_only} onChange={e => setEventForm(p => ({ ...p, elite_only: e.target.checked }))} style={{ width: 16, height: 16, margin: 0 }} />
+            <label htmlFor="elite_only" style={{ marginBottom: 0, cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>Solo para miembros Elite</label>
+          </div>
+          <button className="modal-submit" onClick={saveEvent}>{editingEvent ? 'Guardar cambios →' : 'Crear evento →'}</button>
+          {eventMsg && <div style={{ marginTop: 12, fontSize: 13, color: eventMsg.startsWith('Error') ? '#fb7185' : '#4ade80', textAlign: 'center' }}>{eventMsg}</div>}
+        </div>
+      </div>
+
+      {/* MODAL CANAL */}
+      <div className={`modal-overlay ${showChannelModal ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowChannelModal(false)}>
+        <div className="modal">
+          <div className="modal-head">
+            <h2>Nuevo canal</h2>
+            <button className="modal-close-btn" onClick={() => setShowChannelModal(false)}>✕ Cerrar</button>
+          </div>
+          <div className="form-grid-2">
+            <div><label>Nombre *</label><input value={channelForm.name} onChange={e => setChannelForm(p => ({ ...p, name: e.target.value }))} placeholder="general, eventos..." /></div>
+            <div><label>Emoji</label><input value={channelForm.emoji} onChange={e => setChannelForm(p => ({ ...p, emoji: e.target.value }))} placeholder="🏃" /></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <input type="checkbox" id="elite_ch" checked={channelForm.elite_only} onChange={e => setChannelForm(p => ({ ...p, elite_only: e.target.checked }))} style={{ width: 16, height: 16, margin: 0 }} />
+            <label htmlFor="elite_ch" style={{ marginBottom: 0, cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>Solo para miembros Elite</label>
+          </div>
+          <button className="modal-submit" onClick={saveChannel}>Crear canal →</button>
+          {channelMsg && <div style={{ marginTop: 12, fontSize: 13, color: channelMsg.startsWith('Error') ? '#fb7185' : '#4ade80', textAlign: 'center' }}>{channelMsg}</div>}
+        </div>
+      </div>
+
       {/* MODAL PATROCINADOR */}
       <div className={`modal-overlay ${showSponsorModal ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowSponsorModal(false)}>
         <div className="modal">
@@ -638,18 +939,12 @@ export default function AdminPage() {
             <h2>{editingSponsor ? 'Editar patrocinador' : 'Nuevo patrocinador'}</h2>
             <button className="modal-close-btn" onClick={() => setShowSponsorModal(false)}>✕ Cerrar</button>
           </div>
-
-          {/* Logo upload */}
-          <label>Logo del patrocinador</label>
-          <div className="logo-upload-area" onClick={() => logoInputRef.current?.click()}>
-            <div className="logo-preview">
-              {sponsorLogoPreview ? <img src={sponsorLogoPreview} alt="Logo" /> : <span style={{ fontSize: 28, color: 'rgba(255,255,255,0.2)' }}>🏷️</span>}
-            </div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>Haz clic para subir logo</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>PNG, JPG o SVG · máx 2MB</div>
+          <label>Logo</label>
+          <div className="upload-area" onClick={() => logoInputRef.current?.click()}>
+            <div className="logo-preview-sm">{sponsorLogoPreview ? <img src={sponsorLogoPreview} alt="Logo" /> : <span style={{ fontSize: 24, color: 'rgba(255,255,255,0.2)' }}>🏷️</span>}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Haz clic para subir logo · PNG, JPG, SVG</div>
           </div>
           <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
-
           <div className="form-grid-2">
             <div><label>Nombre *</label><input value={sponsorForm.name} onChange={e => setSponsorForm(p => ({ ...p, name: e.target.value }))} placeholder="VNS" /></div>
             <div><label>Categoría</label><input value={sponsorForm.category} onChange={e => setSponsorForm(p => ({ ...p, category: e.target.value }))} placeholder="nutricion, ropa..." /></div>
@@ -661,33 +956,34 @@ export default function AdminPage() {
           <label>Descripción del descuento</label>
           <input value={sponsorForm.discount_desc} onChange={e => setSponsorForm(p => ({ ...p, discount_desc: e.target.value }))} placeholder="10% off + envío gratis" />
           <label>Descripción</label>
-          <textarea value={sponsorForm.description} onChange={e => setSponsorForm(p => ({ ...p, description: e.target.value }))} placeholder="Descripción del patrocinador..." rows={3} />
+          <textarea value={sponsorForm.description} onChange={e => setSponsorForm(p => ({ ...p, description: e.target.value }))} placeholder="Descripción..." rows={2} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <input type="checkbox" id="featured" checked={sponsorForm.featured} onChange={e => setSponsorForm(p => ({ ...p, featured: e.target.checked }))} style={{ width: 16, height: 16, margin: 0 }} />
-            <label htmlFor="featured" style={{ marginBottom: 0, cursor: 'pointer' }}>Patrocinador principal (destacado)</label>
+            <label htmlFor="featured" style={{ marginBottom: 0, cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>Patrocinador principal</label>
           </div>
-          <button className="modal-submit" onClick={saveSponsor}>
-            {editingSponsor ? 'Guardar cambios →' : 'Crear patrocinador →'}
-          </button>
+          <button className="modal-submit" onClick={saveSponsor}>{editingSponsor ? 'Guardar cambios →' : 'Crear patrocinador →'}</button>
           {sponsorMsg && <div style={{ marginTop: 12, fontSize: 13, color: '#4ade80', textAlign: 'center' }}>{sponsorMsg}</div>}
         </div>
       </div>
 
-      {/* MODAL EDITAR MIEMBRO */}
+      {/* MODAL MIEMBRO */}
       <div className={`modal-overlay ${showMemberModal ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowMemberModal(false)}>
         <div className="modal">
           <div className="modal-head">
-            <h2>Editar miembro</h2>
+            <h2>{isNewMember ? 'Agregar miembro' : 'Editar miembro'}</h2>
             <button className="modal-close-btn" onClick={() => setShowMemberModal(false)}>✕ Cerrar</button>
           </div>
           <div className="form-grid-2">
-            <div><label>Nombre completo</label><input value={memberForm.full_name} onChange={e => setMemberForm(p => ({ ...p, full_name: e.target.value }))} /></div>
-            <div><label>Teléfono</label><input value={memberForm.phone} onChange={e => setMemberForm(p => ({ ...p, phone: e.target.value }))} /></div>
+            <div><label>Nombre completo *</label><input value={memberForm.full_name} onChange={e => setMemberForm(p => ({ ...p, full_name: e.target.value }))} placeholder="Juan Pérez" /></div>
+            <div><label>Teléfono</label><input value={memberForm.phone} onChange={e => setMemberForm(p => ({ ...p, phone: e.target.value }))} placeholder="809-000-0000" /></div>
           </div>
+          {isNewMember && (
+            <div><label>Correo electrónico *</label><input type="email" value={memberForm.email} onChange={e => setMemberForm(p => ({ ...p, email: e.target.value }))} placeholder="juan@correo.com" /></div>
+          )}
           <label>Plan</label>
           <select value={memberForm.plan} onChange={e => setMemberForm(p => ({ ...p, plan: e.target.value }))}>
-            <option value="pace">Pace</option>
-            <option value="elite">Elite</option>
+            <option value="pace">Pace · RD$1,500/mes</option>
+            <option value="elite">Elite · RD$2,400/mes</option>
           </select>
           <label>Estado</label>
           <select value={memberForm.plan_status} onChange={e => setMemberForm(p => ({ ...p, plan_status: e.target.value }))}>
@@ -698,12 +994,12 @@ export default function AdminPage() {
           </select>
           <label>Nivel</label>
           <select value={memberForm.level} onChange={e => setMemberForm(p => ({ ...p, level: e.target.value }))}>
-            <option value="bronce">Bronce</option>
-            <option value="plata">Plata</option>
-            <option value="oro">Oro</option>
+            <option value="bronce">🥉 Bronce</option>
+            <option value="plata">🥈 Plata</option>
+            <option value="oro">🥇 Oro</option>
           </select>
-          <button className="modal-submit" onClick={saveMember}>Guardar cambios →</button>
-          {memberMsg && <div style={{ marginTop: 12, fontSize: 13, color: '#4ade80', textAlign: 'center' }}>{memberMsg}</div>}
+          <button className="modal-submit" onClick={saveMember}>{isNewMember ? 'Crear miembro →' : 'Guardar cambios →'}</button>
+          {memberMsg && <div style={{ marginTop: 12, fontSize: 13, color: memberMsg.startsWith('Error') ? '#fb7185' : '#4ade80', textAlign: 'center' }}>{memberMsg}</div>}
         </div>
       </div>
 
