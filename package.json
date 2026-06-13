@@ -17,8 +17,8 @@
     "react-dom": "^19.0.0",
     "@supabase/supabase-js": "^2.49.4",
     "@supabase/ssr": "^0.12.0",
-    "@tailwindcss/postcss": "*",
-    "tailwindcss": "*"
+    "@tailwindcss/postcss": "^4.0.0",
+    "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
     "typescript": "^5",
