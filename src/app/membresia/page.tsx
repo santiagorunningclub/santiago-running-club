@@ -82,6 +82,12 @@ export default function MembresiasPage() {
     display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px'
   }
 
+  const isFormValid = !!(
+    form.full_name && form.email && form.password &&
+    form.phone && form.cedula && form.birthdate &&
+    form.gender && form.emergency_contact
+  )
+
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#0a0a0a', minHeight: '100vh', color: '#fff', padding: '40px 24px' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');`}</style>
@@ -180,20 +186,20 @@ export default function MembresiasPage() {
                 <input style={inputStyle} type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
               </div>
               <div>
-                <label style={labelStyle}>Teléfono</label>
-                <input style={inputStyle} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="809-000-0000" />
+                <label style={labelStyle}>Teléfono *</label>
+                <input style={inputStyle} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="809-000-0000" required />
               </div>
               <div>
-                <label style={labelStyle}>Cédula / Pasaporte</label>
-                <input style={inputStyle} value={form.cedula} onChange={e => setForm(p => ({ ...p, cedula: e.target.value }))} placeholder="000-0000000-0" />
+                <label style={labelStyle}>Cédula / Pasaporte *</label>
+                <input style={inputStyle} value={form.cedula} onChange={e => setForm(p => ({ ...p, cedula: e.target.value }))} placeholder="000-0000000-0" required />
               </div>
               <div>
-                <label style={labelStyle}>Fecha de nacimiento</label>
-                <input style={inputStyle} type="date" value={form.birthdate} onChange={e => setForm(p => ({ ...p, birthdate: e.target.value }))} />
+                <label style={labelStyle}>Fecha de nacimiento *</label>
+                <input style={inputStyle} type="date" value={form.birthdate} onChange={e => setForm(p => ({ ...p, birthdate: e.target.value }))} required />
               </div>
               <div>
-                <label style={labelStyle}>Género</label>
-                <select style={selectStyle} value={form.gender} onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}>
+                <label style={labelStyle}>Género *</label>
+                <select style={selectStyle} value={form.gender} onChange={e => setForm(p => ({ ...p, gender: e.target.value }))} required>
                   <option value="">Seleccionar</option>
                   <option value="masculino">Masculino</option>
                   <option value="femenino">Femenino</option>
@@ -242,8 +248,8 @@ export default function MembresiasPage() {
                 <input style={inputStyle} value={form.instagram} onChange={e => setForm(p => ({ ...p, instagram: e.target.value }))} placeholder="@tuusuario" />
               </div>
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={labelStyle}>Contacto de emergencia</label>
-                <input style={inputStyle} value={form.emergency_contact} onChange={e => setForm(p => ({ ...p, emergency_contact: e.target.value }))} placeholder="Nombre · 809-000-0000" />
+                <label style={labelStyle}>Contacto de emergencia *</label>
+                <input style={inputStyle} value={form.emergency_contact} onChange={e => setForm(p => ({ ...p, emergency_contact: e.target.value }))} placeholder="Nombre · 809-000-0000" required />
               </div>
             </div>
 
@@ -257,8 +263,8 @@ export default function MembresiasPage() {
               <button onClick={() => setStep(1)} style={{ flex: '0 0 auto', height: '50px', padding: '0 20px', background: 'rgba(255,255,255,0.06)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: '12px', fontSize: '14px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontFamily: 'inherit' }}>
                 ← Volver
               </button>
-              <button onClick={handleRegister} disabled={loading || !form.full_name || !form.email || !form.password}
-                style={{ flex: 1, height: '50px', background: !form.full_name || !form.email || !form.password ? 'rgba(255,255,255,0.2)' : plan === 'elite' ? '#22d3ee' : '#fff', color: '#0a0a0a', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={handleRegister} disabled={loading || !isFormValid}
+                style={{ flex: 1, height: '50px', background: !isFormValid ? 'rgba(255,255,255,0.2)' : plan === 'elite' ? '#22d3ee' : '#fff', color: '#0a0a0a', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {loading ? 'Creando cuenta...' : 'Unirme al club →'}
               </button>
             </div>
