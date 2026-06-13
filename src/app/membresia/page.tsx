@@ -54,6 +54,14 @@ export default function MembresiasPage() {
         points: 0,
         show_in_directory: true,
       }])
+
+      // Enviar email de bienvenida
+      await fetch('/api/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.full_name, email: form.email, plan })
+      })
+
       setStep(3)
     }
     setLoading(false)
@@ -70,8 +78,13 @@ export default function MembresiasPage() {
     ...inputStyle, background: '#1a1a1a', cursor: 'pointer'
   }
 
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px'
+  }
+
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#0a0a0a', minHeight: '100vh', color: '#fff', padding: '40px 24px' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');`}</style>
       <div style={{ maxWidth: '560px', margin: '0 auto' }}>
 
         {/* HEADER */}
@@ -151,36 +164,35 @@ export default function MembresiasPage() {
               Plan <strong style={{ color: plan === 'elite' ? '#22d3ee' : '#fff' }}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</strong> · RD${plan === 'elite' ? '2,400' : '1,500'}/mes
             </div>
 
-            {/* DATOS PERSONALES */}
             <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.25)', marginBottom: '14px' }}>Datos personales</div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Nombre completo *</label>
+                <label style={labelStyle}>Nombre completo *</label>
                 <input style={inputStyle} value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} placeholder="Juan Pérez" />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Correo electrónico *</label>
+                <label style={labelStyle}>Correo electrónico *</label>
                 <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="juan@correo.com" />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Contraseña *</label>
+                <label style={labelStyle}>Contraseña *</label>
                 <input style={inputStyle} type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Teléfono</label>
+                <label style={labelStyle}>Teléfono</label>
                 <input style={inputStyle} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="809-000-0000" />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Cédula / Pasaporte</label>
+                <label style={labelStyle}>Cédula / Pasaporte</label>
                 <input style={inputStyle} value={form.cedula} onChange={e => setForm(p => ({ ...p, cedula: e.target.value }))} placeholder="000-0000000-0" />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Fecha de nacimiento</label>
+                <label style={labelStyle}>Fecha de nacimiento</label>
                 <input style={inputStyle} type="date" value={form.birthdate} onChange={e => setForm(p => ({ ...p, birthdate: e.target.value }))} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Género</label>
+                <label style={labelStyle}>Género</label>
                 <select style={selectStyle} value={form.gender} onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}>
                   <option value="">Seleccionar</option>
                   <option value="masculino">Masculino</option>
@@ -189,17 +201,16 @@ export default function MembresiasPage() {
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Sector / Barrio</label>
+                <label style={labelStyle}>Sector / Barrio</label>
                 <input style={inputStyle} value={form.sector} onChange={e => setForm(p => ({ ...p, sector: e.target.value }))} placeholder="Los Jardines, Centro..." />
               </div>
             </div>
 
-            {/* DATOS DE CORREDOR */}
             <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.25)', marginBottom: '14px', marginTop: '8px' }}>Perfil de corredor</div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Nivel</label>
+                <label style={labelStyle}>Nivel</label>
                 <select style={selectStyle} value={form.runner_level} onChange={e => setForm(p => ({ ...p, runner_level: e.target.value }))}>
                   <option value="">Seleccionar</option>
                   <option value="principiante">Principiante</option>
@@ -209,7 +220,7 @@ export default function MembresiasPage() {
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Distancia preferida</label>
+                <label style={labelStyle}>Distancia preferida</label>
                 <select style={selectStyle} value={form.distance_preference} onChange={e => setForm(p => ({ ...p, distance_preference: e.target.value }))}>
                   <option value="">Seleccionar</option>
                   <option value="5K">5K</option>
@@ -220,18 +231,18 @@ export default function MembresiasPage() {
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Talla de camiseta</label>
+                <label style={labelStyle}>Talla de camiseta</label>
                 <select style={selectStyle} value={form.shirt_size} onChange={e => setForm(p => ({ ...p, shirt_size: e.target.value }))}>
                   <option value="">Seleccionar</option>
                   {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Instagram (opcional)</label>
+                <label style={labelStyle}>Instagram (opcional)</label>
                 <input style={inputStyle} value={form.instagram} onChange={e => setForm(p => ({ ...p, instagram: e.target.value }))} placeholder="@tuusuario" />
               </div>
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>Contacto de emergencia</label>
+                <label style={labelStyle}>Contacto de emergencia</label>
                 <input style={inputStyle} value={form.emergency_contact} onChange={e => setForm(p => ({ ...p, emergency_contact: e.target.value }))} placeholder="Nombre · 809-000-0000" />
               </div>
             </div>
@@ -248,7 +259,7 @@ export default function MembresiasPage() {
               </button>
               <button onClick={handleRegister} disabled={loading || !form.full_name || !form.email || !form.password}
                 style={{ flex: 1, height: '50px', background: !form.full_name || !form.email || !form.password ? 'rgba(255,255,255,0.2)' : plan === 'elite' ? '#22d3ee' : '#fff', color: '#0a0a0a', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                {loading ? 'Creando cuenta...' : `Unirme al club →`}
+                {loading ? 'Creando cuenta...' : 'Unirme al club →'}
               </button>
             </div>
           </div>
@@ -259,8 +270,11 @@ export default function MembresiasPage() {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎉</div>
             <div style={{ fontSize: '22px', fontWeight: 600, marginBottom: '12px' }}>¡Bienvenido al club!</div>
-            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '32px', maxWidth: '360px', margin: '0 auto 32px' }}>
+            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: '12px', maxWidth: '360px', margin: '0 auto 12px' }}>
               Tu solicitud fue enviada. Un administrador revisará tu registro y activará tu membresía en las próximas 24 horas.
+            </div>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', marginBottom: '32px' }}>
+              📧 Te enviamos un correo de bienvenida a <strong style={{ color: 'rgba(255,255,255,0.5)' }}>{form.email}</strong>
             </div>
             <a href="/login" style={{ display: 'inline-block', background: '#fff', color: '#0a0a0a', padding: '14px 32px', borderRadius: '12px', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>
               Ir al login →
