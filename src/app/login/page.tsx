@@ -93,7 +93,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-             ¿Olvidaste tu contraseña?
               <div style={{ textAlign: 'right', marginBottom: '20px' }}>
                 <button type="button" onClick={() => setMode('reset')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>
                   ¿Olvidaste tu contraseña?
