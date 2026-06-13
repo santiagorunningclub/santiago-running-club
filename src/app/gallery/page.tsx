@@ -42,9 +42,9 @@ export default function GalleryPage() {
     setUploadMsg('')
     const fileExt = uploadFile.name.split('.').pop()
     const fileName = `photo-${Date.now()}.${fileExt}`
-    const { data: uploadData, error: uploadError } = await supabase.storage.from('logos').upload(fileName, uploadFile)
+    const { data: uploadData, error: uploadError } = await supabase.storage.from('photos').upload(fileName, uploadFile)
     if (uploadError) { setUploadMsg('Error al subir. Intenta de nuevo.'); setUploading(false); return }
-    const { data: urlData } = supabase.storage.from('logos').getPublicUrl(fileName)
+    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName)
     const { error } = await supabase.from('photos').insert([{ album_id: uploadAlbum || null, url: urlData.publicUrl, caption: uploadCaption, uploaded_by: profile.id, approved: false, likes: 0 }])
     if (!error) { setUploadMsg('✓ Foto enviada — te avisamos cuando esté publicada'); setUploading(false); loadGallery(); setTimeout(() => setShowUpload(false), 2000) }
     else { setUploadMsg('Error al guardar. Intenta de nuevo.'); setUploading(false) }
