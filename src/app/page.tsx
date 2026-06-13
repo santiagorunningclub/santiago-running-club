@@ -12,8 +12,7 @@ export default function LandingPage() {
       router.push('/reset-password' + hash)
     }
   }, [router])
-  
-export default function LandingPage() {
+
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -85,15 +84,12 @@ export default function LandingPage() {
 
       <section className="hero">
         <div className="badge"><span className="badge-dot"></span> Temporada 2025 · Santiago, República Dominicana</div>
-
         <h1>Corre más lejos.<br/><em>Junto a quienes</em><br/>lo entienden.</h1>
         <p className="subtitle">Una comunidad privada de corredores de Santiago. Rutas, retos, eventos exclusivos y todo lo que necesitas para correr mejor.</p>
-
         <div className="cta-wrap">
           <a href="/membresia" className="cta-btn-primary">Ver planes y unirme →</a>
           <span className="cta-hint">Desde RD$1,500/mes · Sin compromiso de permanencia</span>
         </div>
-
         <div className="tease-grid">
           {features.map((f, i) => (
             <div key={i} className="tease-cell">
@@ -104,7 +100,6 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-
         <div className="proof">
           <div className="proof-item"><span className="proof-num">+340</span><div className="proof-label">Corredores activos</div></div>
           <div className="proof-divider" />
