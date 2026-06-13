@@ -22,7 +22,34 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { loadChat() }, [])
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  useEffect(() => {
+    if (!communityChannel) return
+    const subscription = supabase
+      .channel('messages-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `channel_id=eq.${communityChannel.id}`
+      }, async (payload: any) => {
+        const { data: newMsg } = await supabase
+          .from('messages')
+          .select('*, profile:profiles(full_name, plan, level)')
+          .eq('id', payload.new.id)
+          .single()
+        if (newMsg) setMessages(prev => {
+          if (prev.find(m => m.id === newMsg.id)) return prev
+          return [...prev, newMsg]
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(subscription) }
+  }, [communityChannel])
 
   async function loadChat() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -30,7 +57,6 @@ export default function ChatPage() {
     const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
     setProfile(profileData)
 
-    // Buscar o crear canal Comunidad
     let { data: channel } = await supabase.from('channels').select('*').ilike('name', 'comunidad').single()
     if (!channel) {
       const { data: newChannel } = await supabase.from('channels').insert([{ name: 'comunidad', emoji: '💬', elite_only: false }]).select().single()
@@ -56,8 +82,7 @@ export default function ChatPage() {
     if (!inputText.trim() || !communityChannel || !profile) return
     const content = inputText.trim()
     setInputText('')
-    const { data, error } = await supabase.from('messages').insert([{ channel_id: communityChannel.id, user_id: profile.id, content }]).select('*, profile:profiles(full_name, plan, level)').single()
-    if (!error && data) setMessages(prev => [...prev, data])
+    await supabase.from('messages').insert([{ channel_id: communityChannel.id, user_id: profile.id, content }])
   }
 
   async function submitThread() {
@@ -109,12 +134,14 @@ export default function ChatPage() {
     .mode-btn.active { background: rgba(255,255,255,0.08); color: #fff; font-weight: 500; }
     .sidebar-footer { margin-top: auto; padding: 12px 10px; border-top: 0.5px solid rgba(255,255,255,0.06); }
     .online-count { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.3); }
-    .online-dot { width: 7px; height: 7px; background: #4ade80; border-radius: 50%; flex-shrink: 0; }
+    .online-dot { width: 7px; height: 7px; background: #4ade80; border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
     .content { display: flex; flex-direction: column; overflow: hidden; }
     .chat-header { padding: 14px 24px; border-bottom: 0.5px solid rgba(255,255,255,0.07); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
     .chat-header-left { display: flex; align-items: center; gap: 10px; }
     .chat-header-name { font-size: 15px; font-weight: 600; }
     .chat-header-sub { font-size: 12px; color: rgba(255,255,255,0.3); margin-top: 1px; }
+    .realtime-badge { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #4ade80; background: rgba(74,222,128,0.08); border: 0.5px solid rgba(74,222,128,0.2); border-radius: 999px; padding: 3px 10px; }
     .messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 2px; }
     .messages::-webkit-scrollbar { width: 4px; }
     .messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
@@ -201,7 +228,6 @@ export default function ChatPage() {
       </nav>
 
       <div className="app">
-        {/* SIDEBAR */}
         <aside className="sidebar">
           <div className="sidebar-label">Comunidad</div>
           <button className={`mode-btn ${mode === 'chat' ? 'active' : ''}`} onClick={() => setMode('chat')}>💬 Chat</button>
@@ -214,7 +240,6 @@ export default function ChatPage() {
           </div>
         </aside>
 
-        {/* CHAT */}
         {mode === 'chat' && (
           <div className="content">
             <div className="chat-header">
@@ -224,6 +249,10 @@ export default function ChatPage() {
                   <div className="chat-header-name">Comunidad</div>
                   <div className="chat-header-sub">Canal general del club · {messages.length} mensajes</div>
                 </div>
+              </div>
+              <div className="realtime-badge">
+                <div className="online-dot"></div>
+                En vivo
               </div>
             </div>
 
@@ -264,7 +293,6 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* FORO */}
         {mode === 'foro' && (
           <div className="content">
             <div className="foro-header">
@@ -310,7 +338,6 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* MODAL NUEVO HILO */}
       <div className={`modal-overlay ${showNewThread ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowNewThread(false)}>
         <div className="modal">
           <div className="modal-header">
