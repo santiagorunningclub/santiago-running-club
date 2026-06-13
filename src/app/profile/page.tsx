@@ -260,6 +260,23 @@ export default function ProfilePage() {
               </a>
             </div>
           )}
+          <div className="info-card">
+            <div className="info-card-title">Dispositivo de running</div>
+            {profile.strava_connected ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#fc4c02' }}>
+                <span style={{ fontSize: 18 }}>🟠</span>
+                <div>
+                  <div style={{ fontWeight: 500, color: '#fff' }}>Strava conectado</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Tus actividades se sincronizan automáticamente</div>
+                </div>
+              </div>
+            ) : (
+              <a href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=https://santiagorunningclub.com/api/strava/callback&approval_prompt=auto&scope=activity:read_all&state=${profile.id}`}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 42, background: '#fc4c02', color: '#fff', borderRadius: 10, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                🟠 Conectar con Strava
+              </a>
+            )}
+          </div>
           <div className="points-card">
             <div className="points-title">Puntos de lealtad ⭐</div>
             <div className="points-value">{(profile.points || 0).toLocaleString('es-DO')}</div>
