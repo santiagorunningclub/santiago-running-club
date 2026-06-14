@@ -153,7 +153,7 @@ export default function ProfilePage() {
     .run-date-month { font-size: 10px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: .04em; }
     .run-info { flex: 1; }
     .run-name { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
-    .run-meta { display: flex; gap: 12px; }
+    .run-meta { display: flex; gap: 12px; flex-wrap: wrap; }
     .run-stat { font-size: 12px; color: rgba(255,255,255,0.35); }
     .run-type { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
     .rt-run { background: rgba(74,222,128,0.1); color: #4ade80; border: 0.5px solid rgba(74,222,128,0.2); }
@@ -319,6 +319,10 @@ export default function ProfilePage() {
                           <div className="run-meta">
                             {act.duration_minutes && <span className="run-stat">⏱ {Math.floor(act.duration_minutes / 60)}h {act.duration_minutes % 60}m</span>}
                             {act.pace_avg && <span className="run-stat">⚡ {act.pace_avg}/km</span>}
+                            {act.avg_heartrate && <span className="run-stat">❤️ {Math.round(act.avg_heartrate)} bpm</span>}
+                            {act.avg_cadence && <span className="run-stat">👟 {act.avg_cadence} spm</span>}
+                            {act.elevation_gain && <span className="run-stat">⛰️ {Math.round(act.elevation_gain)}m</span>}
+                            {!act.has_heartrate && <span className="run-stat" style={{ color: 'rgba(255,255,255,0.2)' }}>📡 Strava</span>}
                           </div>
                         </div>
                         <span className={`run-type ${act.type === 'race' ? 'rt-race' : 'rt-run'}`}>{act.type === 'race' ? 'Carrera' : 'Running'}</span>
@@ -352,6 +356,10 @@ export default function ProfilePage() {
                           <div className="run-meta">
                             {act.duration_minutes && <span className="run-stat">⏱ {Math.floor(act.duration_minutes / 60)}h {act.duration_minutes % 60}m</span>}
                             {act.pace_avg && <span className="run-stat">⚡ {act.pace_avg}/km</span>}
+                            {act.avg_heartrate && <span className="run-stat">❤️ {Math.round(act.avg_heartrate)} bpm</span>}
+                            {act.avg_cadence && <span className="run-stat">👟 {act.avg_cadence} spm</span>}
+                            {act.elevation_gain && <span className="run-stat">⛰️ {Math.round(act.elevation_gain)}m</span>}
+                            {!act.has_heartrate && <span className="run-stat" style={{ color: 'rgba(255,255,255,0.2)' }}>📡 Strava</span>}
                           </div>
                         </div>
                         <span className={`run-type ${act.type === 'race' ? 'rt-race' : 'rt-run'}`}>{act.type === 'race' ? 'Carrera' : 'Running'}</span>
