@@ -67,6 +67,11 @@ export async function POST(request: Request) {
     })
     const activity = await activityResponse.json()
 
+    // Ignorar actividades creadas manualmente sin GPS/sensores
+    if (activity.manual === true) {
+      return NextResponse.json({ received: true, skipped: 'manual entry' })
+    }
+
     // Solo guardar carreras y trotes
     if (activity.type === 'Run' || activity.type === 'TrailRun' || activity.type === 'VirtualRun') {
       const distanceKm = activity.distance / 1000
@@ -74,6 +79,9 @@ export async function POST(request: Request) {
       const paceSecondsPerKm = activity.moving_time / distanceKm
       const paceMin = Math.floor(paceSecondsPerKm / 60)
       const paceSec = Math.round(paceSecondsPerKm % 60)
+
+      // Validar pace realista (más rápido que 2:30/km es sospechoso para la mayoría)
+      const isRealisticPace = paceSecondsPerKm >= 120 // 2:00/km mínimo
 
       await supabaseAdmin.from('activities').insert([{
         user_id: profile.id,
@@ -84,18 +92,38 @@ export async function POST(request: Request) {
         pace_avg: `${paceMin}:${paceSec.toString().padStart(2, '0')}`,
         recorded_at: activity.start_date,
         strava_activity_id: activityId,
-        valid: true
+        avg_heartrate: activity.average_heartrate || null,
+        max_heartrate: activity.max_heartrate || null,
+        avg_cadence: activity.average_cadence ? Math.round(activity.average_cadence * 2) : null,
+        elevation_gain: activity.total_elevation_gain || null,
+        has_heartrate: activity.has_heartrate || false,
+        valid: isRealisticPace
       }])
 
-      // Actualizar total_km y weekly_km del perfil
+      // Actualizar total_km y weekly_km del perfil (solo actividades válidas)
       const { data: allActivities } = await supabaseAdmin.from('activities').select('distance_km, recorded_at').eq('user_id', profile.id).eq('valid', true)
       const totalKm = (allActivities || []).reduce((sum, a) => sum + a.distance_km, 0)
       const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
       const weeklyKm = (allActivities || []).filter(a => new Date(a.recorded_at) > weekAgo).reduce((sum, a) => sum + a.distance_km, 0)
 
+      // Calcular pace promedio general
+      const { data: paceActivities } = await supabaseAdmin.from('activities').select('distance_km, duration_minutes').eq('user_id', profile.id).eq('valid', true)
+      let paceAvg = null
+      if (paceActivities && paceActivities.length > 0) {
+        const totalDist = paceActivities.reduce((s, a) => s + a.distance_km, 0)
+        const totalDur = paceActivities.reduce((s, a) => s + a.duration_minutes, 0)
+        if (totalDist > 0) {
+          const avgPaceSec = (totalDur * 60) / totalDist
+          const m = Math.floor(avgPaceSec / 60)
+          const s = Math.round(avgPaceSec % 60)
+          paceAvg = `${m}:${s.toString().padStart(2, '0')}`
+        }
+      }
+
       await supabaseAdmin.from('profiles').update({
         total_km: Math.round(totalKm * 100) / 100,
-        weekly_km: Math.round(weeklyKm * 100) / 100
+        weekly_km: Math.round(weeklyKm * 100) / 100,
+        ...(paceAvg ? { pace_avg: paceAvg } : {})
       }).eq('id', profile.id)
     }
   }
