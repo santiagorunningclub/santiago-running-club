@@ -41,6 +41,12 @@ export default function AdminPage() {
   const [memberMsg, setMemberMsg] = useState('')
   const [isNewMember, setIsNewMember] = useState(false)
 
+  // Activities modal
+  const [showActivitiesModal, setShowActivitiesModal] = useState(false)
+  const [activitiesMember, setActivitiesMember] = useState<Profile | null>(null)
+  const [memberActivities, setMemberActivities] = useState<any[]>([])
+  const [activitiesLoading, setActivitiesLoading] = useState(false)
+
   // Event modal
   const [showEventModal, setShowEventModal] = useState(false)
   const [editingEvent, setEditingEvent] = useState<any>(null)
@@ -186,6 +192,28 @@ export default function AdminPage() {
   async function updateMemberStatus(id: string, plan_status: string) {
     await supabase.from('profiles').update({ plan_status }).eq('id', id)
     loadData(); toast(`✓ Miembro ${plan_status === 'active' ? 'activado' : 'suspendido'}`)
+  }
+
+  async function openMemberActivities(member: Profile) {
+    setActivitiesMember(member)
+    setShowActivitiesModal(true)
+    setActivitiesLoading(true)
+    const { data } = await supabase.from('activities').select('*').eq('user_id', member.id).order('recorded_at', { ascending: false }).limit(30)
+    setMemberActivities(data || [])
+    setActivitiesLoading(false)
+  }
+
+  async function toggleActivityValid(activityId: string, currentValid: boolean) {
+    await supabase.from('activities').update({ valid: !currentValid }).eq('id', activityId)
+    if (activitiesMember) {
+      const { data } = await supabase.from('activities').select('*').eq('user_id', activitiesMember.id).order('recorded_at', { ascending: false }).limit(30)
+      setMemberActivities(data || [])
+      // Recalcular total_km del perfil
+      const { data: allActivities } = await supabase.from('activities').select('distance_km').eq('user_id', activitiesMember.id).eq('valid', true)
+      const totalKm = (allActivities || []).reduce((sum: number, a: any) => sum + a.distance_km, 0)
+      await supabase.from('profiles').update({ total_km: Math.round(totalKm * 100) / 100 }).eq('id', activitiesMember.id)
+    }
+    toast(currentValid ? '✕ Actividad invalidada' : '✓ Actividad validada')
   }
 
   async function approvePhoto(id: string) {
@@ -564,7 +592,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <table>
-                    <thead><tr><th>Miembro</th><th>Plan</th><th>Estado</th><th>Nivel</th><th>Registro</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Miembro</th><th>Plan</th><th>Estado</th><th>Nivel</th><th>Strava</th><th>Registro</th><th>Acciones</th></tr></thead>
                     <tbody>
                       {filteredMembers.map(m => (
                         <tr key={m.id}>
@@ -575,16 +603,18 @@ export default function AdminPage() {
                           <td><span className={`plan-pill ${m.plan === 'elite' ? 'pp-elite' : 'pp-pace'}`}>{m.plan}</span></td>
                           <td><span className={`status-pill ${m.plan_status === 'active' ? 'sp-active' : m.plan_status === 'pending' ? 'sp-pending' : 'sp-suspended'}`}>● {m.plan_status}</span></td>
                           <td style={{ color: 'rgba(255,255,255,0.5)' }}>{m.level}</td>
+                          <td>{m.strava_connected ? <span style={{ color: '#fc4c02', fontSize: 12, fontWeight: 600 }}>🟠 Conectado</span> : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}</td>
                           <td style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{new Date(m.created_at).toLocaleDateString('es-DO')}</td>
                           <td><div className="row-actions">
                             <button className="row-btn" onClick={() => { setIsNewMember(false); setEditingMember(m); setMemberForm({ full_name: m.full_name || '', email: m.email || '', phone: m.phone || '', plan: m.plan, plan_status: m.plan_status, level: m.level }); setMemberMsg(''); setShowMemberModal(true) }}>Editar</button>
+                            <button className="row-btn" onClick={() => openMemberActivities(m)}>🏃 Actividades</button>
                             {m.plan_status === 'pending' && <button className="row-btn success" onClick={() => updateMemberStatus(m.id, 'active')}>Aprobar</button>}
                             {m.plan_status === 'active' && <button className="row-btn danger" onClick={() => updateMemberStatus(m.id, 'suspended')}>Suspender</button>}
                             {m.plan_status === 'suspended' && <button className="row-btn success" onClick={() => updateMemberStatus(m.id, 'active')}>Reactivar</button>}
                           </div></td>
                         </tr>
                       ))}
-                      {filteredMembers.length === 0 && <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.25)' }}>No hay miembros aún</td></tr>}
+                      {filteredMembers.length === 0 && <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.25)' }}>No hay miembros aún</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1000,6 +1030,49 @@ export default function AdminPage() {
           </select>
           <button className="modal-submit" onClick={saveMember}>{isNewMember ? 'Crear miembro →' : 'Guardar cambios →'}</button>
           {memberMsg && <div style={{ marginTop: 12, fontSize: 13, color: memberMsg.startsWith('Error') ? '#fb7185' : '#4ade80', textAlign: 'center' }}>{memberMsg}</div>}
+        </div>
+      </div>
+
+      {/* MODAL ACTIVIDADES STRAVA */}
+      <div className={`modal-overlay ${showActivitiesModal ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowActivitiesModal(false)}>
+        <div className="modal" style={{ maxWidth: 640 }}>
+          <div className="modal-head">
+            <h2>Actividades · {activitiesMember?.full_name}</h2>
+            <button className="modal-close-btn" onClick={() => setShowActivitiesModal(false)}>✕ Cerrar</button>
+          </div>
+          {activitiesMember?.strava_connected ? (
+            <div style={{ fontSize: 12, color: '#fc4c02', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>🟠 Conectado a Strava</div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginBottom: 16 }}>Sin Strava conectado</div>
+          )}
+          {activitiesLoading ? (
+            <div style={{ textAlign: 'center', padding: 32, color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Cargando...</div>
+          ) : memberActivities.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 32, color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Sin actividades registradas</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
+              {memberActivities.map(act => (
+                <div key={act.id} style={{ background: 'rgba(255,255,255,0.03)', border: `0.5px solid ${act.valid ? 'rgba(255,255,255,0.08)' : 'rgba(251,113,133,0.25)'}`, borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', marginBottom: 4 }}>{act.name || 'Corrida'} {!act.valid && <span style={{ color: '#fb7185', fontSize: 11, fontWeight: 600 }}>· INVÁLIDA</span>}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'flex', gap: 12, flexWrap: 'wrap' as const }}>
+                      <span>{new Date(act.recorded_at).toLocaleDateString('es-DO')}</span>
+                      <span>{act.distance_km} km</span>
+                      {act.duration_minutes && <span>⏱ {Math.floor(act.duration_minutes/60)}h {act.duration_minutes%60}m</span>}
+                      {act.pace_avg && <span>⚡ {act.pace_avg}/km</span>}
+                      {act.avg_heartrate && <span>❤️ {Math.round(act.avg_heartrate)} bpm</span>}
+                      {act.avg_cadence && <span>👟 {act.avg_cadence} spm</span>}
+                      {act.elevation_gain && <span>⛰️ {Math.round(act.elevation_gain)}m</span>}
+                      {act.strava_activity_id && <span style={{ color: '#fc4c02' }}>🟠 Strava</span>}
+                    </div>
+                  </div>
+                  <button className={`row-btn ${act.valid ? 'danger' : 'success'}`} onClick={() => toggleActivityValid(act.id, act.valid)}>
+                    {act.valid ? 'Invalidar' : 'Validar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
