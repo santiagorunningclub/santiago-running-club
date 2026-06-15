@@ -28,6 +28,8 @@ export default function AdminPage() {
   const [albumMsg, setAlbumMsg] = useState('')
   const [galleryTab, setGalleryTab] = useState<'fotos' | 'albumes'>('fotos')
   const [filterAlbumId, setFilterAlbumId] = useState<string>('')
+  const [uploadingAlbumId, setUploadingAlbumId] = useState<string | null>(null)
+  const albumFileInputRef = useRef<HTMLInputElement>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [communityChannelId, setCommunityChannelId] = useState<string | null>(null)
   const [chatInput, setChatInput] = useState('')
@@ -356,6 +358,29 @@ export default function AdminPage() {
   async function assignPhotoAlbum(photoId: string, albumId: string) {
     await supabase.from('photos').update({ album_id: albumId || null }).eq('id', photoId)
     loadData(); toast('✓ Álbum actualizado')
+  }
+
+  function openAlbumUpload(albumId: string) {
+    setUploadingAlbumId(albumId)
+    albumFileInputRef.current?.click()
+  }
+
+  async function handleAlbumFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0 || !uploadingAlbumId) return
+    toast(`Subiendo ${files.length} foto(s)...`)
+    for (const file of Array.from(files)) {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `album-${uploadingAlbumId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`
+      const { error: uploadError } = await supabase.storage.from('photos').upload(fileName, file)
+      if (uploadError) { toast('Error al subir: ' + uploadError.message); continue }
+      const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName)
+      await supabase.from('photos').insert([{ album_id: uploadingAlbumId, url: urlData.publicUrl, caption: '', uploaded_by: currentAdminId, approved: true, likes: 0 }])
+    }
+    setUploadingAlbumId(null)
+    if (albumFileInputRef.current) albumFileInputRef.current.value = ''
+    loadData()
+    toast('✓ Fotos subidas y publicadas')
   }
 
   async function deleteMessage(id: string) {
@@ -1071,6 +1096,7 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className="row-actions">
+                            <button className="row-btn" onClick={() => openAlbumUpload(album.id)}>📤 Subir fotos</button>
                             <button className="row-btn" onClick={() => openEditAlbum(album)}>Editar</button>
                             <button className="row-btn danger" onClick={() => deleteAlbum(album.id)}>Eliminar</button>
                           </div>
@@ -1381,6 +1407,8 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      <input ref={albumFileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleAlbumFilesSelected} />
 
     </>
   )
