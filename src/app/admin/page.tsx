@@ -61,6 +61,14 @@ export default function AdminPage() {
   const [channelForm, setChannelForm] = useState({ name: '', emoji: '', elite_only: false })
   const [channelMsg, setChannelMsg] = useState('')
 
+  // Channel chat modal (admin)
+  const [showChannelChat, setShowChannelChat] = useState(false)
+  const [activeChannel, setActiveChannel] = useState<any>(null)
+  const [channelMessages, setChannelMessages] = useState<any[]>([])
+  const [channelChatLoading, setChannelChatLoading] = useState(false)
+  const [channelInput, setChannelInput] = useState('')
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null)
+
   useEffect(() => { checkAdmin() }, [])
   useEffect(() => { if (!loading) loadData() }, [panel, loading])
 
@@ -69,6 +77,7 @@ export default function AdminPage() {
     if (!session) { router.push('/login'); return }
     const { data: adminRole } = await supabase.from('admin_roles').select('*').eq('user_id', session.user.id).single()
     if (!adminRole) { setLoading(false); return }
+    setCurrentAdminId(session.user.id)
     const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', session.user.id).single()
     if (profile?.full_name) setAdminName(profile.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2))
     setLoading(false)
@@ -187,6 +196,23 @@ export default function AdminPage() {
     await supabase.from('messages').delete().eq('channel_id', id)
     await supabase.from('channels').delete().eq('id', id)
     loadData(); toast('✓ Canal eliminado')
+  }
+
+  async function openChannelChat(channel: any) {
+    setActiveChannel(channel)
+    setShowChannelChat(true)
+    setChannelChatLoading(true)
+    const { data } = await supabase.from('messages').select('*, profile:profiles(full_name, plan, level)').eq('channel_id', channel.id).eq('deleted', false).order('created_at', { ascending: true }).limit(100)
+    setChannelMessages(data || [])
+    setChannelChatLoading(false)
+  }
+
+  async function sendChannelMessage() {
+    if (!channelInput.trim() || !activeChannel || !currentAdminId) return
+    const content = channelInput.trim()
+    setChannelInput('')
+    const { data, error } = await supabase.from('messages').insert([{ channel_id: activeChannel.id, user_id: currentAdminId, content }]).select('*, profile:profiles(full_name, plan, level)').single()
+    if (!error && data) setChannelMessages(prev => [...prev, data])
   }
 
   async function updateMemberStatus(id: string, plan_status: string) {
@@ -795,7 +821,7 @@ export default function AdminPage() {
                       <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>No hay canales. Crea el primero.</div>
                     ) : (
                       channels.map(ch => (
-                        <div key={ch.id} className="channel-item">
+                        <div key={ch.id} className="channel-item" style={{ cursor: 'pointer' }} onClick={() => openChannelChat(ch)}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <span style={{ fontSize: 18 }}>{ch.emoji || '#'}</span>
                             <div>
@@ -804,7 +830,8 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className="row-actions">
-                            <button className="row-btn danger" onClick={() => deleteChannel(ch.id)}>Eliminar</button>
+                            <button className="row-btn" onClick={(e) => { e.stopPropagation(); openChannelChat(ch) }}>💬 Ver chat</button>
+                            <button className="row-btn danger" onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id) }}>Eliminar</button>
                           </div>
                         </div>
                       ))
@@ -1073,6 +1100,49 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* MODAL CHAT DE CANAL */}
+      <div className={`modal-overlay ${showChannelChat ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowChannelChat(false)}>
+        <div className="modal" style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+          <div className="modal-head">
+            <h2>{activeChannel?.emoji} {activeChannel?.name} {activeChannel?.elite_only && <span style={{ fontSize: 11, color: '#22d3ee', marginLeft: 8 }}>Solo Elite</span>}</h2>
+            <button className="modal-close-btn" onClick={() => setShowChannelChat(false)}>✕ Cerrar</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16, minHeight: 200, maxHeight: 360 }}>
+            {channelChatLoading ? (
+              <div style={{ textAlign: 'center', padding: 32, color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Cargando...</div>
+            ) : channelMessages.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 32, color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>No hay mensajes en este canal todavía</div>
+            ) : (
+              channelMessages.map(msg => {
+                const isAdmin = msg.user_id === currentAdminId
+                const name = msg.profile?.full_name || 'Miembro'
+                return (
+                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: isAdmin ? '#4ade80' : '#fff' }}>
+                      {isAdmin ? `Admin · ${name}` : name}
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', fontWeight: 400, marginLeft: 8 }}>
+                        {new Date(msg.created_at).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>{msg.content}</div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input
+              style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.11)', borderRadius: 10, padding: '0 14px', height: 42, color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
+              placeholder={`Escribir como admin en #${activeChannel?.name}...`}
+              value={channelInput}
+              onChange={e => setChannelInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendChannelMessage() } }}
+            />
+            <button className="btn-primary" onClick={sendChannelMessage}>Enviar</button>
+          </div>
         </div>
       </div>
 
