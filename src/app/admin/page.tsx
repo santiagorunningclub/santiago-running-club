@@ -208,11 +208,12 @@ export default function AdminPage() {
   }
 
   async function sendChannelMessage() {
-    if (!channelInput.trim() || !activeChannel || !currentAdminId) return
+    if (!channelInput.trim() || !activeChannel || !currentAdminId) { toast('No se pudo enviar: falta info'); return }
     const content = channelInput.trim()
     setChannelInput('')
     const { data, error } = await supabase.from('messages').insert([{ channel_id: activeChannel.id, user_id: currentAdminId, content }]).select('*, profile:profiles(full_name, plan, level)').single()
-    if (!error && data) setChannelMessages(prev => [...prev, data])
+    if (error) { toast('Error: ' + error.message); return }
+    if (data) setChannelMessages(prev => [...prev, data])
   }
 
   async function updateMemberStatus(id: string, plan_status: string) {
@@ -465,7 +466,7 @@ export default function AdminPage() {
     .modal-overlay.open { display: flex; }
     .modal { background: #141414; border: 0.5px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 32px; width: 100%; max-width: 520px; margin: auto; }
     .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    .modal h2 { font-size: 18px; font-weight: 600; }
+    .modal h2 { font-size: 18px; font-weight: 600; color: #fff; }
     .modal-close-btn { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.3); font-family: inherit; font-size: 13px; }
     .modal label { display: block; font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
     .modal input, .modal select, .modal textarea { width: 100%; background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 9px; padding: 0 12px; height: 42px; color: #fff; font-size: 14px; font-family: inherit; outline: none; margin-bottom: 14px; box-sizing: border-box; }
