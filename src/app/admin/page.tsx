@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import type { Profile, Sponsor } from '@/lib/types'
 
-type Panel = 'overview' | 'miembros' | 'pagos' | 'eventos' | 'moderacion' | 'chat' | 'foro' | 'admins' | 'preview'
+type Panel = 'overview' | 'miembros' | 'pagos' | 'eventos' | 'moderacion' | 'chat' | 'foro' | 'galeria' | 'admins' | 'preview'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -20,11 +20,13 @@ export default function AdminPage() {
   const [pendingPhotos, setPendingPhotos] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
   const [channels, setChannels] = useState<any[]>([])
+  const [photos, setPhotos] = useState<any[]>([])
+  const [photoFilter, setPhotoFilter] = useState<'pendientes' | 'aprobadas' | 'todas'>('pendientes')
   const [messages, setMessages] = useState<any[]>([])
   const [communityChannelId, setCommunityChannelId] = useState<string | null>(null)
   const [chatInput, setChatInput] = useState('')
   const [threads, setThreads] = useState<any[]>([])
-  const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, pendingContent: 0 })
+  const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, pendingContent: 0, pendingPhotos: 0 })
   const [searchQuery, setSearchQuery] = useState('')
 
   // Sponsor form
@@ -117,7 +119,13 @@ export default function AdminPage() {
     if (panel === 'moderacion') {
       const { data } = await supabase.from('photos').select('*, uploader:profiles(full_name)').eq('approved', false).order('created_at', { ascending: false })
       setPendingPhotos(data || [])
-      setStats(s => ({ ...s, pendingContent: (data || []).length }))
+      setStats(s => ({ ...s, pendingContent: (data || []).length, pendingPhotos: (data || []).length }))
+    }
+    if (panel === 'galeria') {
+      const { data } = await supabase.from('photos').select('*, uploader:profiles(full_name)').order('created_at', { ascending: false })
+      setPhotos(data || [])
+      const pending = (data || []).filter((p: any) => !p.approved)
+      setStats(s => ({ ...s, pendingPhotos: pending.length }))
     }
     if (panel === 'admins') {
       const { data: sp } = await supabase.from('sponsors').select('*').order('sort_order')
@@ -290,6 +298,17 @@ export default function AdminPage() {
   async function rejectPhoto(id: string) {
     await supabase.from('photos').delete().eq('id', id)
     loadData(); toast('✕ Foto rechazada')
+  }
+
+  async function deletePhoto(id: string) {
+    if (!confirm('¿Eliminar esta foto de la galería?')) return
+    await supabase.from('photos').delete().eq('id', id)
+    loadData(); toast('✓ Foto eliminada')
+  }
+
+  async function togglePhotoApproval(id: string, approved: boolean) {
+    await supabase.from('photos').update({ approved: !approved }).eq('id', id)
+    loadData(); toast(approved ? '✕ Foto ocultada' : '✓ Foto aprobada')
   }
 
   async function deleteMessage(id: string) {
@@ -592,6 +611,9 @@ export default function AdminPage() {
               </button>
               <button className={`nav-item ${panel === 'chat' ? 'active' : ''}`} onClick={() => setPanel('chat')}>💬 Chat Comunidad</button>
               <button className={`nav-item ${panel === 'foro' ? 'active' : ''}`} onClick={() => setPanel('foro')}>📝 Foro y canales</button>
+              <button className={`nav-item ${panel === 'galeria' ? 'active' : ''}`} onClick={() => setPanel('galeria')}>
+                📸 Galería {stats.pendingPhotos > 0 && <span className="nav-badge nb-red">{stats.pendingPhotos}</span>}
+              </button>
             </div>
             <div className="sidebar-section">
               <div className="sidebar-label">Vista Rápida</div>
@@ -914,6 +936,52 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* GALERÍA */}
+            {panel === 'galeria' && (
+              <div>
+                <div className="page-header">
+                  <div><div className="page-title">Galería</div><div className="page-sub">{photos.length} fotos · {photos.filter(p => !p.approved).length} pendientes de aprobación</div></div>
+                </div>
+                <div className="foro-filters" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  {(['pendientes','aprobadas','todas'] as const).map(f => (
+                    <button key={f} className={`filter-btn ${photoFilter === f ? 'on' : ''}`} onClick={() => setPhotoFilter(f)}>
+                      {f === 'pendientes' ? `Pendientes (${photos.filter(p => !p.approved).length})` : f === 'aprobadas' ? `Aprobadas (${photos.filter(p => p.approved).length})` : `Todas (${photos.length})`}
+                    </button>
+                  ))}
+                </div>
+                {(() => {
+                  const filtered = photos.filter(p => photoFilter === 'todas' ? true : photoFilter === 'pendientes' ? !p.approved : p.approved)
+                  if (filtered.length === 0) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 14, fontSize: 14 }}>
+                        No hay fotos en esta categoría.
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="mod-grid">
+                      {filtered.map(photo => (
+                        <div key={photo.id} className="mod-item">
+                          <div className="mod-thumb">{photo.url ? <img src={photo.url} alt="" /> : <span style={{ fontSize: 24 }}>📸</span>}</div>
+                          <div className="mod-info">
+                            <div className="mod-type">{photo.approved ? '✓ Publicada' : '⏳ Pendiente'} · galería comunidad</div>
+                            <div className="mod-text">{photo.caption || 'Sin descripción'}</div>
+                            <div className="mod-meta">Por {photo.uploader?.full_name || 'Miembro'} · {new Date(photo.created_at).toLocaleDateString('es-DO')}</div>
+                            <div className="mod-btns">
+                              <button className={photo.approved ? 'mod-reject' : 'mod-approve'} onClick={() => togglePhotoApproval(photo.id, photo.approved)}>
+                                {photo.approved ? '✕ Ocultar' : '✓ Aprobar'}
+                              </button>
+                              <button className="mod-reject" onClick={() => deletePhoto(photo.id)}>🗑 Eliminar</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
             )}
 
