@@ -21,6 +21,8 @@ export default function AdminPage() {
   const [events, setEvents] = useState<any[]>([])
   const [channels, setChannels] = useState<any[]>([])
   const [messages, setMessages] = useState<any[]>([])
+  const [communityChannelId, setCommunityChannelId] = useState<string | null>(null)
+  const [chatInput, setChatInput] = useState('')
   const [threads, setThreads] = useState<any[]>([])
   const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, pendingContent: 0 })
   const [searchQuery, setSearchQuery] = useState('')
@@ -74,10 +76,10 @@ export default function AdminPage() {
 
   // Realtime para el panel "Chat Comunidad" (moderación)
   useEffect(() => {
-    if (panel !== 'chat') return
+    if (panel !== 'chat' || !communityChannelId) return
     const subscription = supabase
       .channel('admin-messages-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload: any) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `channel_id=eq.${communityChannelId}` }, async (payload: any) => {
         if (payload.eventType === 'INSERT') {
           const { data: newMsg } = await supabase.from('messages').select('*, profile:profiles(full_name, plan, level)').eq('id', payload.new.id).single()
           if (newMsg) setMessages(prev => {
@@ -92,7 +94,7 @@ export default function AdminPage() {
       })
       .subscribe()
     return () => { supabase.removeChannel(subscription) }
-  }, [panel])
+  }, [panel, communityChannelId])
 
   async function checkAdmin() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -126,8 +128,15 @@ export default function AdminPage() {
       setEvents(data || [])
     }
     if (panel === 'chat') {
+      let { data: channel } = await supabase.from('channels').select('*').ilike('name', 'comunidad').single()
+      if (!channel) {
+        const { data: newChannel } = await supabase.from('channels').insert([{ name: 'comunidad', emoji: '💬', elite_only: false }]).select().single()
+        channel = newChannel
+      }
+      setCommunityChannelId(channel?.id || null)
       const { data } = await supabase.from('messages')
         .select('*, profile:profiles(full_name, plan)')
+        .eq('channel_id', channel?.id)
         .eq('deleted', false)
         .order('created_at', { ascending: true })
         .limit(100)
@@ -236,6 +245,14 @@ export default function AdminPage() {
     const { data, error } = await supabase.from('messages').insert([{ channel_id: activeChannel.id, user_id: currentAdminId, content }]).select('*, profile:profiles(full_name, plan, level)').single()
     if (error) { toast('Error: ' + error.message); return }
     if (data) setChannelMessages(prev => [...prev, data])
+  }
+
+  async function sendChatMessage() {
+    if (!chatInput.trim() || !communityChannelId || !currentAdminId) { toast('No se pudo enviar: falta info'); return }
+    const content = chatInput.trim()
+    setChatInput('')
+    const { error } = await supabase.from('messages').insert([{ channel_id: communityChannelId, user_id: currentAdminId, content }])
+    if (error) { toast('Error: ' + error.message); return }
   }
 
   async function updateMemberStatus(id: string, plan_status: string) {
@@ -822,7 +839,17 @@ export default function AdminPage() {
                     ))}
                   </div>
                 </div>
-                <div className="info-note">🟢 Tiempo real activado — los mensajes nuevos, ediciones y eliminaciones aparecen automáticamente</div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                  <input
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.11)', borderRadius: 10, padding: '0 14px', height: 42, color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
+                    placeholder="Escribir como admin en #comunidad..."
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendChatMessage() } }}
+                  />
+                  <button className="btn-primary" onClick={sendChatMessage}>Enviar</button>
+                </div>
+                <div className="info-note" style={{ marginTop: 10 }}>🟢 Tiempo real activado — los mensajes nuevos, ediciones y eliminaciones aparecen automáticamente</div>
               </div>
             )}
 
