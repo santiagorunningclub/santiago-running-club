@@ -650,6 +650,9 @@ export default function AdminPage() {
               <button className={`nav-item ${panel === 'pagos' ? 'active' : ''}`} onClick={() => setPanel('pagos')}>💳 Pagos y membresías</button>
               <button className={`nav-item ${panel === 'eventos' ? 'active' : ''}`} onClick={() => setPanel('eventos')}>📅 Eventos</button>
               <button className={`nav-item ${panel === 'admins' ? 'active' : ''}`} onClick={() => setPanel('admins')}>🏷️ Patrocinadores</button>
+              <button className={`nav-item ${panel === 'galeria' ? 'active' : ''}`} onClick={() => setPanel('galeria')}>
+                📸 Galería {stats.pendingPhotos > 0 && <span className="nav-badge nb-red">{stats.pendingPhotos}</span>}
+              </button>
             </div>
             <div className="sidebar-section">
               <div className="sidebar-label">Comunidad</div>
@@ -658,9 +661,6 @@ export default function AdminPage() {
               </button>
               <button className={`nav-item ${panel === 'chat' ? 'active' : ''}`} onClick={() => setPanel('chat')}>💬 Chat Comunidad</button>
               <button className={`nav-item ${panel === 'foro' ? 'active' : ''}`} onClick={() => setPanel('foro')}>📝 Foro y canales</button>
-              <button className={`nav-item ${panel === 'galeria' ? 'active' : ''}`} onClick={() => setPanel('galeria')}>
-                📸 Galería {stats.pendingPhotos > 0 && <span className="nav-badge nb-red">{stats.pendingPhotos}</span>}
-              </button>
             </div>
             <div className="sidebar-section">
               <div className="sidebar-label">Vista Rápida</div>
