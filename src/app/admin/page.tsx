@@ -72,6 +72,28 @@ export default function AdminPage() {
   useEffect(() => { checkAdmin() }, [])
   useEffect(() => { if (!loading) loadData() }, [panel, loading])
 
+  // Realtime para el panel "Chat Comunidad" (moderación)
+  useEffect(() => {
+    if (panel !== 'chat') return
+    const subscription = supabase
+      .channel('admin-messages-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, async (payload: any) => {
+        if (payload.eventType === 'INSERT') {
+          const { data: newMsg } = await supabase.from('messages').select('*, profile:profiles(full_name, plan, level)').eq('id', payload.new.id).single()
+          if (newMsg) setMessages(prev => {
+            if (prev.find((m: any) => m.id === newMsg.id)) return prev
+            return [...prev, newMsg]
+          })
+        } else if (payload.eventType === 'UPDATE') {
+          setMessages(prev => prev.map((m: any) => m.id === payload.new.id ? { ...m, ...payload.new } : m))
+        } else if (payload.eventType === 'DELETE') {
+          setMessages(prev => prev.filter((m: any) => m.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(subscription) }
+  }, [panel])
+
   async function checkAdmin() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/login'); return }
@@ -800,7 +822,7 @@ export default function AdminPage() {
                     ))}
                   </div>
                 </div>
-                <div className="info-note">💡 Los mensajes se actualizan al recargar. Para tiempo real configura Pusher en .env.local</div>
+                <div className="info-note">🟢 Tiempo real activado — los mensajes nuevos, ediciones y eliminaciones aparecen automáticamente</div>
               </div>
             )}
 
