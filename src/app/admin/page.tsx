@@ -22,6 +22,12 @@ export default function AdminPage() {
   const [channels, setChannels] = useState<any[]>([])
   const [photos, setPhotos] = useState<any[]>([])
   const [photoFilter, setPhotoFilter] = useState<'pendientes' | 'aprobadas' | 'todas'>('pendientes')
+  const [albums, setAlbums] = useState<any[]>([])
+  const [showAlbumModal, setShowAlbumModal] = useState(false)
+  const [albumForm, setAlbumForm] = useState({ id: '', title: '', date: '', is_official: true })
+  const [albumMsg, setAlbumMsg] = useState('')
+  const [galleryTab, setGalleryTab] = useState<'fotos' | 'albumes'>('fotos')
+  const [filterAlbumId, setFilterAlbumId] = useState<string>('')
   const [messages, setMessages] = useState<any[]>([])
   const [communityChannelId, setCommunityChannelId] = useState<string | null>(null)
   const [chatInput, setChatInput] = useState('')
@@ -126,6 +132,8 @@ export default function AdminPage() {
       setPhotos(data || [])
       const pending = (data || []).filter((p: any) => !p.approved)
       setStats(s => ({ ...s, pendingPhotos: pending.length }))
+      const { data: albumsData } = await supabase.from('albums').select('*, photos(count)').order('date', { ascending: false })
+      setAlbums(albumsData || [])
     }
     if (panel === 'admins') {
       const { data: sp } = await supabase.from('sponsors').select('*').order('sort_order')
@@ -309,6 +317,45 @@ export default function AdminPage() {
   async function togglePhotoApproval(id: string, approved: boolean) {
     await supabase.from('photos').update({ approved: !approved }).eq('id', id)
     loadData(); toast(approved ? '✕ Foto ocultada' : '✓ Foto aprobada')
+  }
+
+  function openNewAlbum() {
+    setAlbumForm({ id: '', title: '', date: new Date().toISOString().split('T')[0], is_official: true })
+    setAlbumMsg('')
+    setShowAlbumModal(true)
+  }
+
+  function openEditAlbum(album: any) {
+    setAlbumForm({ id: album.id, title: album.title || '', date: album.date ? album.date.split('T')[0] : '', is_official: album.is_official ?? true })
+    setAlbumMsg('')
+    setShowAlbumModal(true)
+  }
+
+  async function saveAlbum() {
+    if (!albumForm.title.trim()) { setAlbumMsg('El título es obligatorio'); return }
+    if (albumForm.id) {
+      const { error } = await supabase.from('albums').update({ title: albumForm.title, date: albumForm.date || null, is_official: albumForm.is_official }).eq('id', albumForm.id)
+      if (error) { setAlbumMsg('Error: ' + error.message); return }
+      setAlbumMsg('✓ Álbum actualizado')
+    } else {
+      const { error } = await supabase.from('albums').insert([{ title: albumForm.title, date: albumForm.date || null, is_official: albumForm.is_official }])
+      if (error) { setAlbumMsg('Error: ' + error.message); return }
+      setAlbumMsg('✓ Álbum creado')
+    }
+    loadData()
+    setTimeout(() => { setShowAlbumModal(false); setAlbumMsg('') }, 1000)
+  }
+
+  async function deleteAlbum(id: string) {
+    if (!confirm('¿Eliminar este álbum? Las fotos quedarán sin álbum asignado.')) return
+    await supabase.from('photos').update({ album_id: null }).eq('album_id', id)
+    await supabase.from('albums').delete().eq('id', id)
+    loadData(); toast('✓ Álbum eliminado')
+  }
+
+  async function assignPhotoAlbum(photoId: string, albumId: string) {
+    await supabase.from('photos').update({ album_id: albumId || null }).eq('id', photoId)
+    loadData(); toast('✓ Álbum actualizado')
   }
 
   async function deleteMessage(id: string) {
@@ -943,45 +990,95 @@ export default function AdminPage() {
             {panel === 'galeria' && (
               <div>
                 <div className="page-header">
-                  <div><div className="page-title">Galería</div><div className="page-sub">{photos.length} fotos · {photos.filter(p => !p.approved).length} pendientes de aprobación</div></div>
+                  <div><div className="page-title">Galería</div><div className="page-sub">{photos.length} fotos · {albums.length} álbumes · {photos.filter(p => !p.approved).length} pendientes</div></div>
+                  {galleryTab === 'albumes' && <div className="page-actions"><button className="btn-primary" onClick={openNewAlbum}>+ Nuevo álbum</button></div>}
                 </div>
+
                 <div className="foro-filters" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                  {(['pendientes','aprobadas','todas'] as const).map(f => (
-                    <button key={f} className={`filter-btn ${photoFilter === f ? 'on' : ''}`} onClick={() => setPhotoFilter(f)}>
-                      {f === 'pendientes' ? `Pendientes (${photos.filter(p => !p.approved).length})` : f === 'aprobadas' ? `Aprobadas (${photos.filter(p => p.approved).length})` : `Todas (${photos.length})`}
-                    </button>
-                  ))}
+                  <button className={`filter-btn ${galleryTab === 'fotos' ? 'on' : ''}`} onClick={() => setGalleryTab('fotos')}>📷 Fotos ({photos.length})</button>
+                  <button className={`filter-btn ${galleryTab === 'albumes' ? 'on' : ''}`} onClick={() => setGalleryTab('albumes')}>🗂️ Álbumes ({albums.length})</button>
                 </div>
-                {(() => {
-                  const filtered = photos.filter(p => photoFilter === 'todas' ? true : photoFilter === 'pendientes' ? !p.approved : p.approved)
-                  if (filtered.length === 0) {
-                    return (
-                      <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 14, fontSize: 14 }}>
-                        No hay fotos en esta categoría.
-                      </div>
-                    )
-                  }
-                  return (
-                    <div className="mod-grid">
-                      {filtered.map(photo => (
-                        <div key={photo.id} className="mod-item">
-                          <div className="mod-thumb">{photo.url ? <img src={photo.url} alt="" /> : <span style={{ fontSize: 24 }}>📸</span>}</div>
-                          <div className="mod-info">
-                            <div className="mod-type">{photo.approved ? '✓ Publicada' : '⏳ Pendiente'} · galería comunidad</div>
-                            <div className="mod-text">{photo.caption || 'Sin descripción'}</div>
-                            <div className="mod-meta">Por {photo.uploader?.full_name || 'Miembro'} · {new Date(photo.created_at).toLocaleDateString('es-DO')}</div>
-                            <div className="mod-btns">
-                              <button className={photo.approved ? 'mod-reject' : 'mod-approve'} onClick={() => togglePhotoApproval(photo.id, photo.approved)}>
-                                {photo.approved ? '✕ Ocultar' : '✓ Aprobar'}
-                              </button>
-                              <button className="mod-reject" onClick={() => deletePhoto(photo.id)}>🗑 Eliminar</button>
+
+                {/* TAB FOTOS */}
+                {galleryTab === 'fotos' && (
+                  <>
+                    <div className="foro-filters" style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' as const }}>
+                      {(['pendientes','aprobadas','todas'] as const).map(f => (
+                        <button key={f} className={`filter-btn ${photoFilter === f ? 'on' : ''}`} onClick={() => setPhotoFilter(f)}>
+                          {f === 'pendientes' ? `Pendientes (${photos.filter(p => !p.approved).length})` : f === 'aprobadas' ? `Aprobadas (${photos.filter(p => p.approved).length})` : `Todas (${photos.length})`}
+                        </button>
+                      ))}
+                      <select className="filter-select" value={filterAlbumId} onChange={e => setFilterAlbumId(e.target.value)} style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 999, color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'inherit', padding: '6px 14px' }}>
+                        <option value="">Todos los álbumes</option>
+                        <option value="none">Sin álbum</option>
+                        {albums.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
+                      </select>
+                    </div>
+                    {(() => {
+                      let filtered = photos.filter(p => photoFilter === 'todas' ? true : photoFilter === 'pendientes' ? !p.approved : p.approved)
+                      if (filterAlbumId === 'none') filtered = filtered.filter(p => !p.album_id)
+                      else if (filterAlbumId) filtered = filtered.filter(p => p.album_id === filterAlbumId)
+                      if (filtered.length === 0) {
+                        return (
+                          <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 14, fontSize: 14 }}>
+                            No hay fotos en esta categoría.
+                          </div>
+                        )
+                      }
+                      return (
+                        <div className="mod-grid">
+                          {filtered.map(photo => (
+                            <div key={photo.id} className="mod-item">
+                              <div className="mod-thumb">{photo.url ? <img src={photo.url} alt="" /> : <span style={{ fontSize: 24 }}>📸</span>}</div>
+                              <div className="mod-info">
+                                <div className="mod-type">{photo.approved ? '✓ Publicada' : '⏳ Pendiente'} · {albums.find(a => a.id === photo.album_id)?.title || 'Sin álbum'}</div>
+                                <div className="mod-text">{photo.caption || 'Sin descripción'}</div>
+                                <div className="mod-meta">Por {photo.uploader?.full_name || 'Miembro'} · {new Date(photo.created_at).toLocaleDateString('es-DO')}</div>
+                                <select value={photo.album_id || ''} onChange={e => assignPhotoAlbum(photo.id, e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', marginTop: 8, marginBottom: 8 }}>
+                                  <option value="">Sin álbum</option>
+                                  {albums.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
+                                </select>
+                                <div className="mod-btns">
+                                  <button className={photo.approved ? 'mod-reject' : 'mod-approve'} onClick={() => togglePhotoApproval(photo.id, photo.approved)}>
+                                    {photo.approved ? '✕ Ocultar' : '✓ Aprobar'}
+                                  </button>
+                                  <button className="mod-reject" onClick={() => deletePhoto(photo.id)}>🗑 Eliminar</button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                  </>
+                )}
+
+                {/* TAB ÁLBUMES */}
+                {galleryTab === 'albumes' && (
+                  <div className="table-wrap">
+                    {albums.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>No hay álbumes. Crea el primero.</div>
+                    ) : (
+                      albums.map(album => (
+                        <div key={album.id} className="channel-item">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 18 }}>{album.is_official ? '🛡️' : '👥'}</span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>{album.title}</div>
+                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                                {album.date && new Date(album.date).toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' })} · {album.photos?.[0]?.count || 0} fotos · {album.is_official ? 'Oficial SRC' : 'Comunidad'}
+                              </div>
                             </div>
                           </div>
+                          <div className="row-actions">
+                            <button className="row-btn" onClick={() => openEditAlbum(album)}>Editar</button>
+                            <button className="row-btn danger" onClick={() => deleteAlbum(album.id)}>Eliminar</button>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )
-                })()}
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1218,6 +1315,27 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* MODAL ÁLBUM */}
+      <div className={`modal-overlay ${showAlbumModal ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowAlbumModal(false)}>
+        <div className="modal">
+          <div className="modal-head">
+            <h2>{albumForm.id ? 'Editar álbum' : 'Nuevo álbum'}</h2>
+            <button className="modal-close-btn" onClick={() => setShowAlbumModal(false)}>✕ Cerrar</button>
+          </div>
+          <label>Título</label>
+          <input type="text" value={albumForm.title} onChange={e => setAlbumForm(p => ({ ...p, title: e.target.value }))} placeholder="Ej. Corrida grupal · Junio 2026" />
+          <label>Fecha</label>
+          <input type="date" value={albumForm.date} onChange={e => setAlbumForm(p => ({ ...p, date: e.target.value }))} />
+          <label>Tipo</label>
+          <select value={albumForm.is_official ? 'oficial' : 'comunidad'} onChange={e => setAlbumForm(p => ({ ...p, is_official: e.target.value === 'oficial' }))}>
+            <option value="oficial">🛡️ Oficial SRC</option>
+            <option value="comunidad">👥 Comunidad</option>
+          </select>
+          <button className="modal-submit" onClick={saveAlbum}>{albumForm.id ? 'Guardar cambios →' : 'Crear álbum →'}</button>
+          {albumMsg && <div style={{ marginTop: 12, fontSize: 13, color: albumMsg.startsWith('Error') ? '#fb7185' : '#4ade80', textAlign: 'center' }}>{albumMsg}</div>}
         </div>
       </div>
 
