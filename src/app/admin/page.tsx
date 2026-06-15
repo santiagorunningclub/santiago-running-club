@@ -1084,24 +1084,43 @@ export default function AdminPage() {
                     {albums.length === 0 ? (
                       <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>No hay álbumes. Crea el primero.</div>
                     ) : (
-                      albums.map(album => (
-                        <div key={album.id} className="channel-item">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ fontSize: 18 }}>{album.is_official ? '🛡️' : '👥'}</span>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>{album.title}</div>
-                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-                                {album.date && new Date(album.date).toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' })} · {album.photos?.[0]?.count || 0} fotos · {album.is_official ? 'Oficial SRC' : 'Comunidad'}
+                      albums.map(album => {
+                        const albumPhotos = photos.filter(p => p.album_id === album.id)
+                        return (
+                        <div key={album.id} className="channel-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 18 }}>{album.is_official ? '🛡️' : '👥'}</span>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>{album.title}</div>
+                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                                  {album.date && new Date(album.date).toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' })} · {albumPhotos.length} fotos · {album.is_official ? 'Oficial SRC' : 'Comunidad'}
+                                </div>
                               </div>
                             </div>
+                            <div className="row-actions">
+                              <button className="row-btn" onClick={() => openAlbumUpload(album.id)}>📤 Subir fotos</button>
+                              <button className="row-btn" onClick={() => openEditAlbum(album)}>Editar</button>
+                              <button className="row-btn danger" onClick={() => deleteAlbum(album.id)}>Eliminar</button>
+                            </div>
                           </div>
-                          <div className="row-actions">
-                            <button className="row-btn" onClick={() => openAlbumUpload(album.id)}>📤 Subir fotos</button>
-                            <button className="row-btn" onClick={() => openEditAlbum(album)}>Editar</button>
-                            <button className="row-btn danger" onClick={() => deleteAlbum(album.id)}>Eliminar</button>
-                          </div>
+                          {albumPhotos.length > 0 && (
+                            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingLeft: 28 }}>
+                              {albumPhotos.slice(0, 8).map(p => (
+                                <div key={p.id} style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.05)', position: 'relative' }}>
+                                  {p.url ? <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 18 }}>📸</span>}
+                                  {!p.approved && <div style={{ position: 'absolute', top: 2, right: 2, fontSize: 9, background: 'rgba(251,191,36,0.9)', color: '#0a0a0a', borderRadius: 999, padding: '1px 5px', fontWeight: 700 }}>⏳</div>}
+                                </div>
+                              ))}
+                              {albumPhotos.length > 8 && (
+                                <div style={{ width: 56, height: 56, borderRadius: 8, flexShrink: 0, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
+                                  +{albumPhotos.length - 8}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      ))
+                      )})
                     )}
                   </div>
                 )}
