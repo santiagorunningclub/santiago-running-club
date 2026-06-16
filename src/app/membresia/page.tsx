@@ -2,14 +2,14 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 type Step = 1 | 2 | 3 | 4
 type Plan = 'pace' | 'elite'
 
-export default function MembresiasPage() {
+function MembresiaForm() {
   const searchParams = useSearchParams()
   const [step, setStep] = useState<Step>(1)
   const [plan, setPlan] = useState<Plan>('pace')
@@ -336,5 +336,13 @@ export default function MembresiasPage() {
 
       </div>
     </div>
+  )
+}
+
+export default function MembresiasPage() {
+  return (
+    <Suspense fallback={null}>
+      <MembresiaForm />
+    </Suspense>
   )
 }
