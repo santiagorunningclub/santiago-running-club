@@ -27,6 +27,38 @@ function MembresiaForm() {
     }
   }, [searchParams])
 
+  const [existingProfile, setExistingProfile] = useState<any>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [changingPlan, setChangingPlan] = useState(false)
+  const [planChangeMsg, setPlanChangeMsg] = useState('')
+
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+        if (profileData) {
+          setExistingProfile(profileData)
+          setPlan(profileData.plan)
+        }
+      }
+      setCheckingSession(false)
+    }
+    checkSession()
+  }, [])
+
+  async function handlePlanChange(newPlan: Plan) {
+    if (!existingProfile) return
+    setChangingPlan(true)
+    setPlanChangeMsg('')
+    const { error } = await supabase.from('profiles').update({ plan: newPlan }).eq('id', existingProfile.id)
+    if (error) { setPlanChangeMsg('Error: ' + error.message); setChangingPlan(false); return }
+    setExistingProfile((p: any) => ({ ...p, plan: newPlan }))
+    setPlan(newPlan)
+    setPlanChangeMsg('✓ Plan actualizado correctamente')
+    setChangingPlan(false)
+  }
+
   const [form, setForm] = useState({
     full_name: '', email: '', password: '', phone: '',
     cedula: '', birthdate: '', gender: '', sector: '',
@@ -102,6 +134,72 @@ function MembresiaForm() {
     form.phone && form.cedula && form.birthdate &&
     form.gender && form.emergency_contact
   )
+
+  if (checkingSession) {
+    return (
+      <div style={{ background: '#0a0a0a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
+        Cargando...
+      </div>
+    )
+  }
+
+  // VISTA PARA MIEMBROS YA REGISTRADOS — solo cambio de plan, sin repetir el formulario
+  if (existingProfile) {
+    return (
+      <div style={{ fontFamily: 'Inter, sans-serif', background: '#0a0a0a', minHeight: '100vh', color: '#fff', padding: '40px 24px' }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');`}</style>
+        <div style={{ maxWidth: '560px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <a href="/dashboard" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px' }}>
+                Santiago<em style={{ fontStyle: 'italic', fontWeight: 400 }}>Running</em>Club<sup style={{ fontSize: '9px', opacity: 0.5 }}>®</sup>
+              </div>
+            </a>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>Mi membresía</div>
+          </div>
+
+          <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6, textAlign: 'center' }}>Tu plan actual</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginBottom: 28 }}>
+            Estado: <strong style={{ color: existingProfile.plan_status === 'active' ? '#4ade80' : '#fbbf24' }}>{existingProfile.plan_status === 'active' ? 'Activo' : existingProfile.plan_status === 'pending' ? 'Pendiente de aprobación' : existingProfile.plan_status}</strong>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 24 }}>
+            <div onClick={() => handlePlanChange('pace')} style={{ background: existingProfile.plan === 'pace' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)', border: `0.5px solid ${existingProfile.plan === 'pace' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.09)'}`, borderRadius: 16, padding: 24, cursor: changingPlan ? 'wait' : 'pointer', position: 'relative' }}>
+              {existingProfile.plan === 'pace' && <div style={{ position: 'absolute', top: 12, right: 12, width: 18, height: 18, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#0a0a0a' }}>✓</div>}
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Pace</div>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>RD$1,500<span style={{ fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>/mes</span></div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>RD$1,250/mes anual</div>
+            </div>
+            <div onClick={() => handlePlanChange('elite')} style={{ background: existingProfile.plan === 'elite' ? 'rgba(34,211,238,0.07)' : 'rgba(255,255,255,0.03)', border: `0.5px solid ${existingProfile.plan === 'elite' ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.09)'}`, borderRadius: 16, padding: 24, cursor: changingPlan ? 'wait' : 'pointer', position: 'relative' }}>
+              {existingProfile.plan === 'elite' && <div style={{ position: 'absolute', top: 12, right: 12, width: 18, height: 18, borderRadius: '50%', background: '#22d3ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#0a0a0a' }}>✓</div>}
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6, color: '#22d3ee' }}>Elite</div>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>RD$2,400<span style={{ fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>/mes</span></div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>RD$2,000/mes anual</div>
+            </div>
+          </div>
+
+          {planChangeMsg && (
+            <div style={{ background: planChangeMsg.startsWith('Error') ? 'rgba(251,113,133,0.08)' : 'rgba(74,222,128,0.08)', border: `0.5px solid ${planChangeMsg.startsWith('Error') ? 'rgba(251,113,133,0.2)' : 'rgba(74,222,128,0.2)'}`, borderRadius: 10, padding: 12, fontSize: 13, color: planChangeMsg.startsWith('Error') ? '#fb7185' : '#4ade80', textAlign: 'center', marginBottom: 20 }}>
+              {planChangeMsg}
+            </div>
+          )}
+
+          {!existingProfile.strava_connected && (
+            <div style={{ background: 'rgba(252,76,2,0.06)', border: '0.5px solid rgba(252,76,2,0.2)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#fc4c02' }}>🟠 Aún no has conectado Strava</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 12, lineHeight: 1.5 }}>Conecta tu cuenta para que tus corridas cuenten en el ranking y los retos del club.</div>
+              <a href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=https://santiagorunningclub.com/api/strava/callback&approval_prompt=auto&scope=activity:read_all&state=${existingProfile.id}`}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 42, background: '#fc4c02', color: '#fff', borderRadius: 10, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                🟠 Conectar con Strava
+              </a>
+            </div>
+          )}
+
+          <a href="/dashboard" style={{ display: 'block', textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>← Volver al dashboard</a>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#0a0a0a', minHeight: '100vh', color: '#fff', padding: '40px 24px' }}>
