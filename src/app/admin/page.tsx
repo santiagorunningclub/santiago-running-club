@@ -633,13 +633,20 @@ export default function AdminPage() {
     .pagos-card { background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 20px; }
   `
 
-  const activityLog = [
-    { text: '<strong>Ana López</strong> se unió al plan Pace', time: 'Hace 12 minutos', icon: '👤', color: 'ki-green' },
-    { text: '<strong>Roberto Suárez</strong> renovó su membresía Elite · RD$2,000', time: 'Hace 34 minutos', icon: '💳', color: 'ki-amber' },
-    { text: '<strong>3 fotos nuevas</strong> esperan moderación en la galería', time: 'Hace 1 hora', icon: '📸', color: 'ki-red' },
-    { text: '<strong>Miguel Rodríguez</strong> publicó un nuevo hilo en el foro', time: 'Hace 2 horas', icon: '💬', color: 'ki-blue' },
-    { text: '<strong>Carlos Méndez</strong> canceló su membresía Pace', time: 'Hace 3 horas', icon: '✕', color: 'ki-red' },
-  ]
+  const activityLog = (() => {
+    const items: { text: string; time: string; icon: string; color: string }[] = []
+    members.slice(0, 5).forEach(m => {
+      items.push({
+        text: `<strong>${m.full_name}</strong> se unió al plan ${m.plan === 'elite' ? 'Elite' : 'Pace'}`,
+        time: new Date(m.created_at).toLocaleDateString('es-DO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        icon: '👤', color: 'ki-green'
+      })
+    })
+    if (stats.pendingPhotos > 0) {
+      items.push({ text: `<strong>${stats.pendingPhotos} foto(s)</strong> esperan moderación en la galería`, time: 'Ahora', icon: '📸', color: 'ki-red' })
+    }
+    return items.slice(0, 6)
+  })()
 
   return (
     <>
@@ -655,7 +662,7 @@ export default function AdminPage() {
           </div>
           <div className="topbar-right">
             <a href="/" target="_blank" className="topbar-btn">Ver sitio ↗</a>
-            <div className="topbar-btn"><div className="notif-dot"></div>{stats.pendingContent || 5} pendientes</div>
+            <div className="topbar-btn"><div className="notif-dot"></div>{stats.pendingContent} pendientes</div>
             <div className="avatar-admin">{adminName}</div>
           </div>
         </div>
@@ -711,25 +718,29 @@ export default function AdminPage() {
                   <div><div className="page-title">Overview</div><div className="page-sub">Resumen general · {new Date().toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
                 </div>
                 <div className="kpi-grid">
-                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-green">👥</div><span className="kpi-trend trend-up">↑ +12</span></div><div className="kpi-value">{stats.activeMembers || 0}</div><div className="kpi-label">Miembros activos</div></div>
-                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-amber">💳</div><span className="kpi-trend trend-up">↑ +8%</span></div><div className="kpi-value">RD$<span style={{ fontSize: 20 }}>487K</span></div><div className="kpi-label">Ingresos este mes</div></div>
-                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-blue">📅</div><span className="kpi-trend trend-up">↑ 2 nuevos</span></div><div className="kpi-value">{events.length || 0}</div><div className="kpi-label">Eventos activos</div></div>
-                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-red">🛡️</div><span className="kpi-trend trend-dn">{stats.pendingContent} pendientes</span></div><div className="kpi-value">{stats.pendingContent}</div><div className="kpi-label">Contenido por moderar</div></div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-green">👥</div></div><div className="kpi-value">{stats.activeMembers || 0}</div><div className="kpi-label">Miembros activos</div></div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-amber">💳</div></div><div className="kpi-value">{stats.totalMembers || 0}</div><div className="kpi-label">Miembros totales</div></div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-blue">📅</div></div><div className="kpi-value">{events.length || 0}</div><div className="kpi-label">Eventos activos</div></div>
+                  <div className="kpi-card"><div className="kpi-top"><div className="kpi-icon ki-red">🛡️</div>{stats.pendingContent > 0 && <span className="kpi-trend trend-dn">{stats.pendingContent} pendientes</span>}</div><div className="kpi-value">{stats.pendingContent}</div><div className="kpi-label">Contenido por moderar</div></div>
                 </div>
                 <div className="table-wrap">
                   <div className="table-header"><div className="table-title">Actividad reciente</div></div>
                   <div style={{ padding: '4px 20px 8px' }}>
-                    <div className="activity-feed">
-                      {activityLog.map((item, i) => (
-                        <div key={i} className="activity-item">
-                          <div className={`act-icon ${item.color}`}>{item.icon}</div>
-                          <div className="act-body">
-                            <div className="act-text" dangerouslySetInnerHTML={{ __html: item.text }} />
-                            <div className="act-time">{item.time}</div>
+                    {activityLog.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: 32, color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Sin actividad reciente</div>
+                    ) : (
+                      <div className="activity-feed">
+                        {activityLog.map((item, i) => (
+                          <div key={i} className="activity-item">
+                            <div className={`act-icon ${item.color}`}>{item.icon}</div>
+                            <div className="act-body">
+                              <div className="act-text" dangerouslySetInnerHTML={{ __html: item.text }} />
+                              <div className="act-time">{item.time}</div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -788,11 +799,16 @@ export default function AdminPage() {
                   <div><div className="page-title">Pagos y membresías</div><div className="page-sub">Gestión de cobros y suscripciones</div></div>
                 </div>
                 <div className="pagos-grid">
-                  {[
-                    { label: 'Ingresos del mes', value: 'RD$487,500', sub: '+8% vs mes anterior', color: '#4ade80' },
-                    { label: 'Membresías activas', value: String(stats.activeMembers), sub: `${members.filter(m => m.plan === 'elite').length} Elite · ${members.filter(m => m.plan === 'pace').length} Pace`, color: '#22d3ee' },
-                    { label: 'Pagos pendientes', value: String(members.filter(m => m.plan_status === 'pending').length), sub: 'Requieren verificación', color: '#fbbf24' },
-                  ].map((card, i) => (
+                  {(() => {
+                    const eliteActive = members.filter(m => m.plan === 'elite' && m.plan_status === 'active').length
+                    const paceActive = members.filter(m => m.plan === 'pace' && m.plan_status === 'active').length
+                    const estimatedIncome = eliteActive * 2400 + paceActive * 1500
+                    return [
+                      { label: 'Ingresos estimados/mes', value: `RD$${estimatedIncome.toLocaleString('es-DO')}`, sub: `${eliteActive} Elite × RD$2,400 + ${paceActive} Pace × RD$1,500`, color: '#4ade80' },
+                      { label: 'Membresías activas', value: String(stats.activeMembers), sub: `${eliteActive} Elite · ${paceActive} Pace`, color: '#22d3ee' },
+                      { label: 'Pagos pendientes', value: String(members.filter(m => m.plan_status === 'pending').length), sub: 'Requieren verificación', color: '#fbbf24' },
+                    ]
+                  })().map((card, i) => (
                     <div key={i} className="pagos-card">
                       <div style={{ fontSize: 28, fontWeight: 700, color: card.color, marginBottom: 6 }}>{card.value}</div>
                       <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.label}</div>

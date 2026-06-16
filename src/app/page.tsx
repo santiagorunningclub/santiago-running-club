@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function LandingPage() {
   const router = useRouter()
+  const [stats, setStats] = useState({ members: 0, events: 0, sponsors: 0 })
 
   useEffect(() => {
     const hash = window.location.hash
@@ -12,6 +14,16 @@ export default function LandingPage() {
       router.push('/reset-password' + hash)
     }
   }, [router])
+
+  useEffect(() => {
+    async function loadStats() {
+      const { count: membersCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan_status', 'active')
+      const { count: eventsCount } = await supabase.from('events').select('*', { count: 'exact', head: true })
+      const { count: sponsorsCount } = await supabase.from('sponsors').select('*', { count: 'exact', head: true }).eq('active', true)
+      setStats({ members: membersCount || 0, events: eventsCount || 0, sponsors: sponsorsCount || 0 })
+    }
+    loadStats()
+  }, [])
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
@@ -101,11 +113,11 @@ export default function LandingPage() {
           ))}
         </div>
         <div className="proof">
-          <div className="proof-item"><span className="proof-num">+340</span><div className="proof-label">Corredores activos</div></div>
+          <div className="proof-item"><span className="proof-num">{stats.members}</span><div className="proof-label">Corredores activos</div></div>
           <div className="proof-divider" />
-          <div className="proof-item"><span className="proof-num">62</span><div className="proof-label">Eventos realizados</div></div>
+          <div className="proof-item"><span className="proof-num">{stats.events}</span><div className="proof-label">Eventos activos</div></div>
           <div className="proof-divider" />
-          <div className="proof-item"><span className="proof-num">1</span><div className="proof-label">Patrocinadores</div></div>
+          <div className="proof-item"><span className="proof-num">{stats.sponsors}</span><div className="proof-label">Patrocinadores</div></div>
           <div className="proof-divider" />
           <div className="proof-item"><span className="proof-num">2019</span><div className="proof-label">Año de fundación</div></div>
         </div>

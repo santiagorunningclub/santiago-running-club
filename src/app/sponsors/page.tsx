@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 export default function SponsorsPage() {
   const router = useRouter()
   const [sponsors, setSponsors] = useState<any[]>([])
+  const [memberCount, setMemberCount] = useState(0)
   const [filter, setFilter] = useState('todos')
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -23,6 +24,8 @@ export default function SponsorsPage() {
     setProfile(profileData)
     const { data } = await supabase.from('sponsors').select('*').eq('active', true).order('featured', { ascending: false }).order('sort_order')
     setSponsors(data || [])
+    const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('plan_status', 'active')
+    setMemberCount(count || 0)
     setLoading(false)
   }
 
@@ -272,7 +275,7 @@ export default function SponsorsPage() {
       {/* CTA */}
       <div className="cta-section">
         <h2>¿Quieres patrocinar el club?</h2>
-        <p>Llega a más de 340 corredores activos en Santiago. Ofrece un descuento exclusivo y aparece en nuestra plataforma, eventos y comunicaciones.</p>
+        <p>Llega a {memberCount} corredores activos en Santiago. Ofrece un descuento exclusivo y aparece en nuestra plataforma, eventos y comunicaciones.</p>
         <a href="mailto:hola@santiagorunningclub.com" className="contact-btn">
           ✉ Contáctanos para ser sponsor
         </a>

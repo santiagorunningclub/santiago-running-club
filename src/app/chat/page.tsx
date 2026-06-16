@@ -232,12 +232,6 @@ export default function ChatPage() {
           <div className="sidebar-label">Comunidad</div>
           <button className={`mode-btn ${mode === 'chat' ? 'active' : ''}`} onClick={() => setMode('chat')}>💬 Chat</button>
           <button className={`mode-btn ${mode === 'foro' ? 'active' : ''}`} onClick={() => setMode('foro')}>📝 Foro</button>
-          <div className="sidebar-footer">
-            <div className="online-count">
-              <div className="online-dot"></div>
-              <span style={{ color: '#4ade80', fontWeight: 500 }}>18</span>&nbsp;en línea
-            </div>
-          </div>
         </aside>
 
         {mode === 'chat' && (
