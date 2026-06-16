@@ -1,4 +1,4 @@
-'use client'
+''use client'
 
 export const dynamic = 'force-dynamic'
 
@@ -220,14 +220,44 @@ export default function DashboardPage() {
     .pill-t { background: rgba(34,211,238,0.1); color: #22d3ee; border: 0.5px solid rgba(34,211,238,0.2); }
   `
 
-  const lastStreakDays = 11
-  const streakDots = Array.from({ length: 14 }, (_, i) => ({
-    day: i + 1,
-    status: i < lastStreakDays - 1 ? 'done' : i === lastStreakDays - 1 ? 'today' : 'rest'
-  }))
+  // Calcular racha real de días consecutivos con actividad
+  function calculateStreak() {
+    const datesWithActivity = new Set(
+      activities.map(a => new Date(a.recorded_at).toDateString())
+    )
+    let streak = 0
+    const cursor = new Date()
+    // Si hoy no hay actividad, empezamos a contar desde ayer (no rompe la racha por no haber corrido aún hoy)
+    if (!datesWithActivity.has(cursor.toDateString())) {
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    while (datesWithActivity.has(cursor.toDateString())) {
+      streak++
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    return streak
+  }
+
+  const lastStreakDays = calculateStreak()
+  const streakDots = Array.from({ length: 14 }, (_, i) => {
+    const dayOffset = 13 - i
+    const date = new Date()
+    date.setDate(date.getDate() - dayOffset)
+    const hasActivity = activities.some(a => new Date(a.recorded_at).toDateString() === date.toDateString())
+    const isToday = dayOffset === 0
+    return { day: date.getDate(), status: hasActivity ? (isToday ? 'today' : 'done') : 'rest' }
+  })
 
   const recentDays = ['L','M','X','J','V','S','D','L','M','X','J','V','S','D']
-  const barHeights = [45, 0, 60, 30, 0, 90, 0, 50, 70, 55, 40, 0, 100, 35]
+  const barHeights = Array.from({ length: 14 }, (_, i) => {
+    const dayOffset = 13 - i
+    const date = new Date()
+    date.setDate(date.getDate() - dayOffset)
+    const dayKm = activities.filter(a => new Date(a.recorded_at).toDateString() === date.toDateString()).reduce((sum, a) => sum + a.distance_km, 0)
+    return dayKm
+  })
+  const maxBarKm = Math.max(...barHeights, 1)
+  const barHeightsPct = barHeights.map(km => km > 0 ? Math.max(15, (km / maxBarKm) * 100) : 0)
 
   return (
     <>
@@ -237,13 +267,6 @@ export default function DashboardPage() {
         <a className="logo" href="/dashboard">
           <span className="logo-text">Santiago<em>Running</em>Club<sup style={{ fontSize: '9px', opacity: 0.5 }}>®</sup></span>
         </a>
-        <div className="nav-links">
-          <a href="/events">Eventos</a>
-          <a href="/directory">Directorio</a>
-          <a href="/gallery">Galería</a>
-          <a href="/chat">Chat</a>
-          <a href="/sponsors">Patrocinadores</a>
-        </div>
         <a href="/profile" className="nav-avatar">{initials}</a>
       </nav>
 
@@ -266,6 +289,10 @@ export default function DashboardPage() {
           <a className="sidebar-item" href="/directory">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
             Directorio
+          </a>
+          <a className="sidebar-item" href="/gallery">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            Galería
           </a>
           <a className="sidebar-item" href="/chat">
             <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" stroke="currentColor"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -365,10 +392,10 @@ export default function DashboardPage() {
               </div>
               <div className="bars-wrap">
                 {recentDays.map((day, i) => (
-                  <div key={i} className="bar-col">
+                  <div key={i} className="bar-col" title={barHeights[i] > 0 ? `${barHeights[i].toFixed(1)} km` : 'Sin actividad'}>
                     <div className="bar-track">
-                      {barHeights[i] > 0
-                        ? <div className="bar-fill run" style={{ height: `${barHeights[i]}%` }}></div>
+                      {barHeightsPct[i] > 0
+                        ? <div className="bar-fill run" style={{ height: `${barHeightsPct[i]}%` }}></div>
                         : <div className="bar-fill rest"></div>
                       }
                     </div>
