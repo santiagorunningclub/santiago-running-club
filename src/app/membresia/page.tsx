@@ -2,17 +2,31 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-type Step = 1 | 2 | 3
+type Step = 1 | 2 | 3 | 4
 type Plan = 'pace' | 'elite'
 
 export default function MembresiasPage() {
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<Step>(1)
   const [plan, setPlan] = useState<Plan>('pace')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
+  const [newUserId, setNewUserId] = useState('')
+
+  useEffect(() => {
+    const stravaStatus = searchParams.get('strava')
+    const stepParam = searchParams.get('step')
+    if (stravaStatus === 'success' && stepParam === '4') {
+      setStep(4)
+    } else if (stravaStatus === 'denied') {
+      setStep(3)
+    }
+  }, [searchParams])
+
   const [form, setForm] = useState({
     full_name: '', email: '', password: '', phone: '',
     cedula: '', birthdate: '', gender: '', sector: '',
@@ -62,6 +76,7 @@ export default function MembresiasPage() {
         body: JSON.stringify({ name: form.full_name, email: form.email, plan })
       })
 
+      setNewUserId(data.user.id)
       setStep(3)
     }
     setLoading(false)
@@ -104,13 +119,13 @@ export default function MembresiasPage() {
         </div>
 
         {/* STEPS */}
-        {step < 3 && (
+        {step < 4 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '36px' }}>
-            {[1, 2].map(s => (
+            {[1, 2, 3].map(s => (
               <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, background: step >= s ? '#fff' : 'rgba(255,255,255,0.08)', color: step >= s ? '#0a0a0a' : 'rgba(255,255,255,0.3)' }}>{s}</div>
-                <span style={{ fontSize: '12px', color: step >= s ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)' }}>{s === 1 ? 'Elige tu plan' : 'Tus datos'}</span>
-                {s < 2 && <div style={{ width: 32, height: '0.5px', background: 'rgba(255,255,255,0.1)' }} />}
+                <span style={{ fontSize: '12px', color: step >= s ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)' }}>{s === 1 ? 'Elige tu plan' : s === 2 ? 'Tus datos' : 'Conecta Strava'}</span>
+                {s < 3 && <div style={{ width: 32, height: '0.5px', background: 'rgba(255,255,255,0.1)' }} />}
               </div>
             ))}
           </div>
@@ -271,8 +286,39 @@ export default function MembresiasPage() {
           </div>
         )}
 
-        {/* STEP 3 — CONFIRMACIÓN */}
+        {/* STEP 3 — CONECTAR STRAVA */}
         {step === 3 && (
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 6, textAlign: 'center' }}>Conecta tu Strava</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginBottom: 28 }}>Opcional, pero muy recomendado</div>
+
+            <div style={{ background: 'rgba(252,76,2,0.06)', border: '0.5px solid rgba(252,76,2,0.2)', borderRadius: 16, padding: 24, marginBottom: 24 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: '#fc4c02' }}>🟠 ¿Por qué conectar tu Strava?</div>
+              {[
+                ['📊', 'Tus corridas se registran automáticamente — no tienes que reportar nada manualmente.'],
+                ['🏆', 'Solo las actividades con GPS real (Strava, Garmin, Coros, Apple Watch, Wahoo) cuentan para el ranking del club, los retos y los logros.'],
+                ['🛡️', 'Protege la integridad del ranking — evita que alguien reporte distancias falsas.'],
+                ['❤️', 'Vemos tu pace, frecuencia cardíaca, cadencia y elevación para análisis más completos.'],
+              ].map(([icon, text], i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, marginBottom: i < 3 ? 12 : 0, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 16 }}>{icon}</span>
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.55 }}>{text}</span>
+                </div>
+              ))}
+            </div>
+
+            <a href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=https://santiagorunningclub.com/api/strava/callback&approval_prompt=auto&scope=activity:read_all&state=${newUserId}`}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 50, background: '#fc4c02', color: '#fff', borderRadius: 12, fontSize: 15, fontWeight: 600, textDecoration: 'none', marginBottom: 12 }}>
+              🟠 Conectar con Strava
+            </a>
+            <button onClick={() => setStep(4)} style={{ width: '100%', height: 44, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Conectar más tarde desde mi perfil →
+            </button>
+          </div>
+        )}
+
+        {/* STEP 4 — CONFIRMACIÓN */}
+        {step === 4 && (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎉</div>
             <div style={{ fontSize: '22px', fontWeight: 600, marginBottom: '12px' }}>¡Bienvenido al club!</div>
