@@ -22,28 +22,22 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const debug: any = { body, steps: [] }
 
   if (body.aspect_type === 'create' && body.object_type === 'activity') {
     const athleteId = body.owner_id
     const activityId = body.object_id
 
-    // Buscar perfil
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id, strava_access_token, strava_refresh_token, strava_token_expires_at')
       .eq('strava_athlete_id', athleteId)
       .single()
 
-    debug.steps.push({ step: 'find_profile', profileFound: !!profile, error: profileError?.message })
-
-    if (!profile) return NextResponse.json({ received: true, debug })
+    if (!profile) return NextResponse.json({ received: true })
 
     let accessToken = profile.strava_access_token
 
-    // Refrescar token si expiró
     if (profile.strava_token_expires_at < Math.floor(Date.now() / 1000)) {
-      debug.steps.push({ step: 'refreshing_token' })
       const refreshResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,7 +49,6 @@ export async function POST(request: Request) {
         })
       })
       const refreshData = await refreshResponse.json()
-      debug.steps.push({ step: 'token_refresh_result', error: refreshData.errors })
       accessToken = refreshData.access_token
       await supabaseAdmin.from('profiles').update({
         strava_access_token: refreshData.access_token,
@@ -64,15 +57,13 @@ export async function POST(request: Request) {
       }).eq('id', profile.id)
     }
 
-    // Obtener detalles de la actividad
     const activityResponse = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
     const activity = await activityResponse.json()
-    debug.steps.push({ step: 'fetch_activity', status: activityResponse.status, type: activity.type, manual: activity.manual, errors: activity.errors })
 
     if (activity.manual === true) {
-      return NextResponse.json({ received: true, debug, skipped: 'manual entry' })
+      return NextResponse.json({ received: true })
     }
 
     if (activity.type === 'Run' || activity.type === 'TrailRun' || activity.type === 'VirtualRun') {
@@ -99,8 +90,6 @@ export async function POST(request: Request) {
         valid: isRealisticPace
       }])
 
-      debug.steps.push({ step: 'insert_activity', error: insertError?.message })
-
       if (!insertError) {
         const { data: allActivities } = await supabaseAdmin.from('activities').select('distance_km, recorded_at').eq('user_id', profile.id).eq('valid', true)
         const totalKm = (allActivities || []).reduce((sum, a) => sum + a.distance_km, 0)
@@ -126,10 +115,8 @@ export async function POST(request: Request) {
           ...(paceAvg ? { pace_avg: paceAvg } : {})
         }).eq('id', profile.id)
       }
-    } else {
-      debug.steps.push({ step: 'skipped', reason: `activity type ${activity.type} not a run` })
     }
   }
 
-  return NextResponse.json({ received: true, debug })
+  return NextResponse.json({ received: true })
 }
