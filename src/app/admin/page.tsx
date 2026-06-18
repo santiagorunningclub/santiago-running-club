@@ -1509,6 +1509,7 @@ export default function AdminPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
+                <a href={`/profile/${profileMember.id}`} target="_blank" rel="noreferrer" className="btn-primary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>👤 Ver perfil público ↗</a>
                 <button className="btn-primary" onClick={() => { setShowProfileModal(false); openMemberActivities(profileMember) }}>🏃 Ver actividades</button>
                 <button className="row-btn" onClick={() => { setShowProfileModal(false); setIsNewMember(false); setEditingMember(profileMember); setMemberForm({ full_name: profileMember.full_name || '', email: profileMember.email || '', phone: profileMember.phone || '', plan: profileMember.plan, plan_status: profileMember.plan_status, level: profileMember.level }); setMemberMsg(''); setShowMemberModal(true) }}>✏️ Editar</button>
               </div>
