@@ -8,7 +8,6 @@ const supabaseAdmin = createClient(
 
 const VERIFY_TOKEN = 'srcwebhook2025'
 
-// Strava verifica el webhook con un GET
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const mode = searchParams.get('hub.mode')
@@ -21,27 +20,30 @@ export async function GET(request: Request) {
   return NextResponse.json({ error: 'Invalid token' }, { status: 403 })
 }
 
-// Strava envía eventos de actividades con POST
 export async function POST(request: Request) {
   const body = await request.json()
+  const debug: any = { body, steps: [] }
 
   if (body.aspect_type === 'create' && body.object_type === 'activity') {
     const athleteId = body.owner_id
     const activityId = body.object_id
 
-    // Buscar el perfil con este athlete_id
-    const { data: profile } = await supabaseAdmin
+    // Buscar perfil
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, strava_access_token, strava_refresh_token, strava_token_expires_at')
       .eq('strava_athlete_id', athleteId)
       .single()
 
-    if (!profile) return NextResponse.json({ received: true })
+    debug.steps.push({ step: 'find_profile', profileFound: !!profile, error: profileError?.message })
+
+    if (!profile) return NextResponse.json({ received: true, debug })
 
     let accessToken = profile.strava_access_token
 
     // Refrescar token si expiró
     if (profile.strava_token_expires_at < Math.floor(Date.now() / 1000)) {
+      debug.steps.push({ step: 'refreshing_token' })
       const refreshResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
         })
       })
       const refreshData = await refreshResponse.json()
+      debug.steps.push({ step: 'token_refresh_result', error: refreshData.errors })
       accessToken = refreshData.access_token
       await supabaseAdmin.from('profiles').update({
         strava_access_token: refreshData.access_token,
@@ -66,26 +69,23 @@ export async function POST(request: Request) {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
     const activity = await activityResponse.json()
+    debug.steps.push({ step: 'fetch_activity', status: activityResponse.status, type: activity.type, manual: activity.manual, errors: activity.errors })
 
-    // Ignorar actividades creadas manualmente sin GPS/sensores
     if (activity.manual === true) {
-      return NextResponse.json({ received: true, skipped: 'manual entry' })
+      return NextResponse.json({ received: true, debug, skipped: 'manual entry' })
     }
 
-    // Solo guardar carreras y trotes
     if (activity.type === 'Run' || activity.type === 'TrailRun' || activity.type === 'VirtualRun') {
       const distanceKm = activity.distance / 1000
       const durationMinutes = Math.round(activity.moving_time / 60)
       const paceSecondsPerKm = activity.moving_time / distanceKm
       const paceMin = Math.floor(paceSecondsPerKm / 60)
       const paceSec = Math.round(paceSecondsPerKm % 60)
+      const isRealisticPace = paceSecondsPerKm >= 120
 
-      // Validar pace realista (más rápido que 2:30/km es sospechoso para la mayoría)
-      const isRealisticPace = paceSecondsPerKm >= 120 // 2:00/km mínimo
-
-      await supabaseAdmin.from('activities').insert([{
+      const { error: insertError } = await supabaseAdmin.from('activities').insert([{
         user_id: profile.id,
-        name: activity.name,
+        activity_name: activity.name,
         type: activity.workout_type === 1 ? 'race' : 'run',
         distance_km: Math.round(distanceKm * 100) / 100,
         duration_minutes: durationMinutes,
@@ -100,33 +100,37 @@ export async function POST(request: Request) {
         valid: isRealisticPace
       }])
 
-      // Actualizar total_km y weekly_km del perfil (solo actividades válidas)
-      const { data: allActivities } = await supabaseAdmin.from('activities').select('distance_km, recorded_at').eq('user_id', profile.id).eq('valid', true)
-      const totalKm = (allActivities || []).reduce((sum, a) => sum + a.distance_km, 0)
-      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
-      const weeklyKm = (allActivities || []).filter(a => new Date(a.recorded_at) > weekAgo).reduce((sum, a) => sum + a.distance_km, 0)
+      debug.steps.push({ step: 'insert_activity', error: insertError?.message })
 
-      // Calcular pace promedio general
-      const { data: paceActivities } = await supabaseAdmin.from('activities').select('distance_km, duration_minutes').eq('user_id', profile.id).eq('valid', true)
-      let paceAvg = null
-      if (paceActivities && paceActivities.length > 0) {
-        const totalDist = paceActivities.reduce((s, a) => s + a.distance_km, 0)
-        const totalDur = paceActivities.reduce((s, a) => s + a.duration_minutes, 0)
-        if (totalDist > 0) {
-          const avgPaceSec = (totalDur * 60) / totalDist
-          const m = Math.floor(avgPaceSec / 60)
-          const s = Math.round(avgPaceSec % 60)
-          paceAvg = `${m}:${s.toString().padStart(2, '0')}`
+      if (!insertError) {
+        const { data: allActivities } = await supabaseAdmin.from('activities').select('distance_km, recorded_at').eq('user_id', profile.id).eq('valid', true)
+        const totalKm = (allActivities || []).reduce((sum, a) => sum + a.distance_km, 0)
+        const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+        const weeklyKm = (allActivities || []).filter(a => new Date(a.recorded_at) > weekAgo).reduce((sum, a) => sum + a.distance_km, 0)
+
+        const { data: paceActivities } = await supabaseAdmin.from('activities').select('distance_km, duration_minutes').eq('user_id', profile.id).eq('valid', true)
+        let paceAvg = null
+        if (paceActivities && paceActivities.length > 0) {
+          const totalDist = paceActivities.reduce((s, a) => s + a.distance_km, 0)
+          const totalDur = paceActivities.reduce((s, a) => s + a.duration_minutes, 0)
+          if (totalDist > 0) {
+            const avgPaceSec = (totalDur * 60) / totalDist
+            const m = Math.floor(avgPaceSec / 60)
+            const s = Math.round(avgPaceSec % 60)
+            paceAvg = `${m}:${s.toString().padStart(2, '0')}`
+          }
         }
-      }
 
-      await supabaseAdmin.from('profiles').update({
-        total_km: Math.round(totalKm * 100) / 100,
-        weekly_km: Math.round(weeklyKm * 100) / 100,
-        ...(paceAvg ? { pace_avg: paceAvg } : {})
-      }).eq('id', profile.id)
+        await supabaseAdmin.from('profiles').update({
+          total_km: Math.round(totalKm * 100) / 100,
+          weekly_km: Math.round(weeklyKm * 100) / 100,
+          ...(paceAvg ? { pace_avg: paceAvg } : {})
+        }).eq('id', profile.id)
+      }
+    } else {
+      debug.steps.push({ step: 'skipped', reason: `activity type ${activity.type} not a run` })
     }
   }
 
-  return NextResponse.json({ received: true })
+  return NextResponse.json({ received: true, debug })
 }
