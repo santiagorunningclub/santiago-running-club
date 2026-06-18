@@ -85,7 +85,6 @@ export async function POST(request: Request) {
 
       const { error: insertError } = await supabaseAdmin.from('activities').insert([{
         user_id: profile.id,
-        activity_name: activity.name,
         type: activity.workout_type === 1 ? 'race' : 'run',
         distance_km: Math.round(distanceKm * 100) / 100,
         duration_minutes: durationMinutes,
