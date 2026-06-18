@@ -55,6 +55,8 @@ export default function AdminPage() {
 
   // Activities modal
   const [showActivitiesModal, setShowActivitiesModal] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileMember, setProfileMember] = useState<Profile | null>(null)
   const [activitiesMember, setActivitiesMember] = useState<Profile | null>(null)
   const [memberActivities, setMemberActivities] = useState<any[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(false)
@@ -777,6 +779,7 @@ export default function AdminPage() {
                           <td>{m.strava_connected ? <span style={{ color: '#fc4c02', fontSize: 12, fontWeight: 600 }}>🟠 Conectado</span> : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}</td>
                           <td style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{new Date(m.created_at).toLocaleDateString('es-DO')}</td>
                           <td><div className="row-actions">
+                            <button className="row-btn" onClick={() => { setProfileMember(m); setShowProfileModal(true) }}>👤 Perfil</button>
                             <button className="row-btn" onClick={() => { setIsNewMember(false); setEditingMember(m); setMemberForm({ full_name: m.full_name || '', email: m.email || '', phone: m.phone || '', plan: m.plan, plan_status: m.plan_status, level: m.level }); setMemberMsg(''); setShowMemberModal(true) }}>Editar</button>
                             <button className="row-btn" onClick={() => openMemberActivities(m)}>🏃 Actividades</button>
                             {m.plan_status === 'pending' && <button className="row-btn success" onClick={() => updateMemberStatus(m.id, 'active')}>Aprobar</button>}
@@ -1444,6 +1447,77 @@ export default function AdminPage() {
       </div>
 
       <input ref={albumFileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleAlbumFilesSelected} />
+
+      {/* MODAL PERFIL DE MIEMBRO */}
+      <div className={`modal-overlay ${showProfileModal ? 'open' : ''}`} onClick={e => e.target === e.currentTarget && setShowProfileModal(false)}>
+        <div className="modal" style={{ maxWidth: 560 }}>
+          {profileMember && (
+            <>
+              <div className="modal-head">
+                <h2>Perfil · {profileMember.full_name}</h2>
+                <button className="modal-close-btn" onClick={() => setShowProfileModal(false)}>✕ Cerrar</button>
+              </div>
+
+              {/* BADGES */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: 20 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 999, background: profileMember.plan === 'elite' ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.06)', color: profileMember.plan === 'elite' ? '#22d3ee' : 'rgba(255,255,255,0.5)' }}>
+                  {profileMember.plan === 'elite' ? '⚡ Elite' : '🏃 Pace'}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 999, background: profileMember.plan_status === 'active' ? 'rgba(74,222,128,0.1)' : 'rgba(251,191,36,0.1)', color: profileMember.plan_status === 'active' ? '#4ade80' : '#fbbf24' }}>
+                  {profileMember.plan_status === 'active' ? '✓ Activo' : profileMember.plan_status === 'pending' ? '⏳ Pendiente' : profileMember.plan_status}
+                </span>
+                {(profileMember as any).strava_connected && <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 999, background: 'rgba(252,76,2,0.1)', color: '#fc4c02' }}>🟠 Strava</span>}
+                {profileMember.level && <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,215,0,0.08)', color: '#ffd700' }}>{profileMember.level === 'oro' ? '🥇' : profileMember.level === 'plata' ? '🥈' : '🥉'} {profileMember.level.charAt(0).toUpperCase() + profileMember.level.slice(1)}</span>}
+              </div>
+
+              {/* INFO */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px', marginBottom: 20 }}>
+                {[
+                  ['📧 Email', profileMember.email],
+                  ['📱 Teléfono', profileMember.phone],
+                  ['🪪 Cédula', profileMember.cedula],
+                  ['🎂 Nacimiento', profileMember.birthdate ? new Date(profileMember.birthdate).toLocaleDateString('es-DO') : '—'],
+                  ['⚥ Género', profileMember.gender],
+                  ['📍 Sector', profileMember.sector],
+                  ['👕 Talla', profileMember.shirt_size],
+                  ['📸 Instagram', profileMember.instagram],
+                  ['🚨 Emergencia', profileMember.emergency_contact],
+                  ['📅 Registro', new Date((profileMember as any).created_at).toLocaleDateString('es-DO')],
+                ].map(([label, value]) => value ? (
+                  <div key={label} style={{ padding: '8px 0', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{value}</div>
+                  </div>
+                ) : null)}
+              </div>
+
+              {/* STATS */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20 }}>
+                {[
+                  ['Total km', `${(profileMember as any).total_km || 0} km`],
+                  ['Esta semana', `${(profileMember as any).weekly_km || 0} km`],
+                  ['Pace avg', (profileMember as any).pace_avg || '—'],
+                  ['Puntos', ((profileMember as any).points || 0).toLocaleString('es-DO')],
+                  ['Dist. favorita', (profileMember as any).distance_preference || '—'],
+                  ['Nivel runner', (profileMember as any).runner_level || '—'],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 2 }}>{value}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn-primary" onClick={() => { setShowProfileModal(false); openMemberActivities(profileMember) }}>🏃 Ver actividades</button>
+                <button className="row-btn" onClick={() => { setShowProfileModal(false); setIsNewMember(false); setEditingMember(profileMember); setMemberForm({ full_name: profileMember.full_name || '', email: profileMember.email || '', phone: profileMember.phone || '', plan: profileMember.plan, plan_status: profileMember.plan_status, level: profileMember.level }); setMemberMsg(''); setShowMemberModal(true) }}>✏️ Editar</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+
 
     </>
   )
